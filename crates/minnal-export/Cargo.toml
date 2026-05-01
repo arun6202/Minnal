@@ -1,0 +1,16 @@
+﻿[package]
+name = "minnal-export"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "HTML, PDF, and Excel exports"
+
+[dependencies]
+minnal-store = { path = "../minnal-store" }
+minnal-core = { path = "../minnal-core" }
+
+[lints]
+workspace = true

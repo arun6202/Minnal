@@ -1,0 +1,33 @@
+﻿# Rust build output
+/target/
+
+# Local data
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+.minnal-data/
+Minnal-data/
+
+# Model weights - never committed
+*.gguf
+*.ggml
+models/
+
+# Secrets
+.minnal-secrets
+.Minnal-secrets
+*.pem
+*.key
+*.pfx
+
+# IDE
+.vscode/
+.idea/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Local AI session transcripts
+sessions/*.txt
+!sessions/*.md

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Minnal Intelligence Overlay</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary-fixed": "#89f5e7",
+                        "tertiary-fixed": "#cbe6ff",
+                        "error-container": "#93000a",
+                        "surface-container-highest": "#44302e",
+                        "primary-container": "#dc2626",
+                        "on-secondary": "#003732",
+                        "surface-variant": "#44302e",
+                        "background": "#1f0f0d",
+                        "outline-variant": "#5c403c",
+                        "on-tertiary-fixed": "#001e30",
+                        "error": "#ffb4ab",
+                        "secondary-container": "#29a195",
+                        "on-secondary-container": "#00302b",
+                        "surface-container-lowest": "#190a08",
+                        "primary": "#ffb4ab",
+                        "on-secondary-fixed-variant": "#005049",
+                        "on-primary-fixed-variant": "#93000b",
+                        "inverse-on-surface": "#3f2c29",
+                        "surface-bright": "#493432",
+                        "surface": "#1f0f0d",
+                        "primary-fixed": "#ffdad6",
+                        "tertiary-fixed-dim": "#90cdff",
+                        "inverse-surface": "#fbdbd7",
+                        "inverse-primary": "#bf0715",
+                        "surface-container": "#2d1b19",
+                        "on-tertiary": "#003450",
+                        "on-background": "#fbdbd7",
+                        "secondary": "#6bd8cb",
+                        "outline": "#ac8884",
+                        "on-primary-fixed": "#410002",
+                        "on-primary-container": "#fff6f5",
+                        "on-tertiary-container": "#f3f8ff",
+                        "tertiary-container": "#0078b2",
+                        "on-secondary-fixed": "#00201d",
+                        "surface-container-high": "#382523",
+                        "tertiary": "#90cdff",
+                        "on-tertiary-fixed-variant": "#004b71",
+                        "on-primary": "#690005",
+                        "on-surface": "#fbdbd7",
+                        "on-error-container": "#ffdad6",
+                        "on-error": "#690005",
+                        "primary-fixed-dim": "#ffb4ab",
+                        "surface-container-low": "#281715",
+                        "surface-tint": "#ffb4ab",
+                        "on-surface-variant": "#e6bdb8",
+                        "secondary-fixed-dim": "#6bd8cb",
+                        "surface-dim": "#1f0f0d"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "lg": "24px",
+                        "xs": "4px",
+                        "xl": "40px",
+                        "sm": "8px",
+                        "gutter": "1px",
+                        "unit": "4px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "h2": [
+                            "Inter"
+                        ],
+                        "label-caps": [
+                            "JetBrains Mono"
+                        ],
+                        "display": [
+                            "Inter"
+                        ],
+                        "code-sm": [
+                            "JetBrains Mono"
+                        ],
+                        "code-md": [
+                            "JetBrains Mono"
+                        ],
+                        "body-lg": [
+                            "Inter"
+                        ],
+                        "h1": [
+                            "Inter"
+                        ],
+                        "body-md": [
+                            "Inter"
+                        ]
+                    },
+                    "fontSize": {
+                        "h2": [
+                            "24px",
+                            {
+                                "lineHeight": "1.3",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "600"
+                            }
+                        ],
+                        "label-caps": [
+                            "10px",
+                            {
+                                "lineHeight": "1",
+                                "letterSpacing": "0.1em",
+                                "fontWeight": "700"
+                            }
+                        ],
+                        "display": [
+                            "48px",
+                            {
+                                "lineHeight": "1.1",
+                                "letterSpacing": "-0.04em",
+                                "fontWeight": "700"
+                            }
+                        ],
+                        "code-sm": [
+                            "11px",
+                            {
+                                "lineHeight": "1.4",
+                                "fontWeight": "400"
+                            }
+                        ],
+                        "code-md": [
+                            "13px",
+                            {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                            }
+                        ],
+                        "body-lg": [
+                            "18px",
+                            {
+                                "lineHeight": "1.6",
+                                "fontWeight": "400"
+                            }
+                        ],
+                        "h1": [
+                            "32px",
+                            {
+                                "lineHeight": "1.2",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "600"
+                            }
+                        ],
+                        "body-md": [
+                            "14px",
+                            {
+                                "lineHeight": "1.5",
+                                "fontWeight": "400"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        /* Dark mode grid background for main canvas */
+        .grid-bg {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(172, 136, 132, 0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(172, 136, 132, 0.1) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface h-screen w-screen overflow-hidden flex flex-col font-body-md text-body-md selection:bg-primary selection:text-on-primary">
+<!-- TopAppBar -->
+<header class="bg-surface docked full-width top-0 border-b border-outline-variant flat no shadows flex justify-between items-center px-4 h-12 w-full z-50 fixed">
+<div class="flex items-center gap-xl">
+<span class="text-xl font-bold tracking-tight text-primary">MINNAL</span>
+<nav class="hidden md:flex items-center gap-md font-label-md">
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-150" href="#">Workspaces</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-150" href="#">Endpoints</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors duration-150" href="#">Analytics</a>
+</nav>
+</div>
+<div class="flex items-center gap-md">
+<button class="bg-primary text-on-primary font-label-sm text-label-sm px-4 py-1.5 rounded hover:bg-primary/90 transition-colors">
+                Deploy
+            </button>
+<div class="flex items-center gap-sm text-on-surface-variant">
+<span class="material-symbols-outlined hover:text-primary transition-colors duration-150 cursor-pointer text-[18px]">settings</span>
+<span class="material-symbols-outlined hover:text-primary transition-colors duration-150 cursor-pointer text-[18px]">help</span>
+<span class="material-symbols-outlined hover:text-primary transition-colors duration-150 cursor-pointer text-[18px]">account_circle</span>
+</div>
+</div>
+</header>
+<div class="flex flex-1 relative top-12 h-[calc(100vh-3rem-2rem)] w-full overflow-hidden">
+<!-- Left SideNavBar (SEMANTIC_SIDEBAR) -->
+<nav class="bg-surface docked h-full left-0 border-r border-outline-variant w-64 fixed left-0 top-12 flex flex-col z-40">
+<div class="p-4 border-b border-outline-variant flex items-center gap-3">
+<div class="w-8 h-8 bg-surface-container border border-outline-variant rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-outline text-[16px]">memory</span>
+</div>
+<div>
+<h2 class="font-label-caps text-label-caps text-on-surface">SEMANTIC_SIDEBAR</h2>
+<p class="font-code-sm text-code-sm text-on-surface-variant">V_4.0_ORCHESTRATOR</p>
+</div>
+</div>
+<div class="flex-1 py-4 flex flex-col gap-1 font-label-sm text-label-sm uppercase">
+<a class="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container hover:text-primary transition-all duration-75" href="#">
+<span class="material-symbols-outlined text-[18px]">api</span>
+                    Requests
+                </a>
+<a class="bg-surface-container text-primary border-l-4 border-primary px-3 py-2 flex items-center gap-3 font-semibold transition-all duration-75" href="#">
+<span class="material-symbols-outlined text-[18px]">psychology</span>
+                    Semantic
+                </a>
+<a class="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container hover:text-primary transition-all duration-75" href="#">
+<span class="material-symbols-outlined text-[18px]">dns</span>
+                    Domain
+                </a>
+<a class="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container hover:text-primary transition-all duration-75" href="#">
+<span class="material-symbols-outlined text-[18px]">history</span>
+                    History
+                </a>
+<a class="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container hover:text-primary transition-all duration-75" href="#">
+<span class="material-symbols-outlined text-[18px]">folder_open</span>
+                    Collections
+                </a>
+</div>
+<div class="p-4 border-t border-outline-variant">
+<button class="w-full bg-surface-container border border-outline text-on-surface font-label-sm text-label-sm py-2 rounded hover:bg-surface-container-high transition-colors">
+                    New Request
+                </button>
+</div>
+</nav>
+<!-- Main Canvas (Semantic Map) -->
+<main class="flex-1 ml-64 mr-72 relative bg-background overflow-hidden grid-bg flex flex-col z-10">
+<!-- Search Overlay Header -->
+<div class="absolute top-0 left-0 w-full p-lg z-20 pointer-events-none flex justify-center mt-4">
+<div class="pointer-events-auto w-full max-w-3xl flex items-center bg-surface-container-high border border-outline-variant rounded-full px-5 py-3 shadow-sm">
+<span class="material-symbols-outlined text-outline mr-3">search</span>
+<input class="bg-transparent border-none text-body-md font-body-md text-on-surface w-full focus:ring-0 placeholder-outline-variant outline-none" readonly="" spellcheck="false" type="text" value="Intent: 'Auth Flow' OR 'Payment Lifecycle'"/>
+<div class="flex items-center gap-2 ml-4">
+<span class="font-code-sm text-code-sm text-on-surface-variant px-2 py-1 border border-outline-variant rounded bg-surface-container-low">CTRL+K</span>
+</div>
+</div>
+</div>
+<!-- Galaxy Map Area -->
+<div class="flex-1 relative w-full h-full overflow-hidden">
+<!-- Center Focus Ring -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-outline-variant rounded-full opacity-20 pointer-events-none"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] border border-primary opacity-20 pointer-events-none rounded-full"></div>
+<!-- Cluster: Auth Flow (Active Focus) -->
+<div class="absolute top-[30%] left-[25%] -translate-x-1/2 -translate-y-1/2 w-96 flex flex-col gap-4">
+<div class="font-label-caps text-label-caps text-primary tracking-[0.1em] mb-2 flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-primary shadow-sm"></div>
+                        CLUSTER: AUTHENTICATION_FLOW
+                    </div>
+<!-- Dense Node Card (Selected) -->
+<div class="bg-surface-container border-2 border-primary rounded p-4 shadow-md relative group cursor-crosshair">
+<div class="flex justify-between items-start mb-3">
+<h3 class="font-code-md text-code-md text-on-surface">POST /v2/auth/verify-token</h3>
+<span class="font-label-caps text-label-caps bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">ACTIVE</span>
+</div>
+<p class="font-code-sm text-code-sm text-on-surface-variant mb-4 leading-relaxed line-clamp-2">Validates JWT against JWKS endpoint. Enforces rigid expiration bounds and claims verification.</p>
+<div class="flex items-center gap-4 border-t border-outline-variant pt-3 mt-2">
+<div class="flex items-center gap-1 font-code-sm text-code-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-primary">bolt</span> 42ms
+                            </div>
+<div class="flex items-center gap-1 font-code-sm text-code-sm text-on-surface-variant">
+<span class="material-symbols-outlined text-[16px] text-primary">data_usage</span> 1.2kb
+                            </div>
+</div>
+</div>
+<!-- Dense Node Card (Sub-node) -->
+<div class="bg-surface-container-low border border-outline-variant rounded p-3 ml-8 relative before:content-[''] before:absolute before:-left-8 before:top-1/2 before:w-8 before:h-[1px] before:bg-outline-variant">
+<div class="flex justify-between items-start">
+<h3 class="font-code-sm text-code-sm text-on-surface-variant">GET /v2/auth/jwks.json</h3>
+</div>
+</div>
+</div>
+<!-- Cluster: Payment Lifecycle -->
+<div class="absolute top-[60%] right-[30%] translate-x-1/2 -translate-y-1/2 w-80 flex flex-col gap-4">
+<div class="font-label-caps text-label-caps text-secondary tracking-[0.1em] mb-2 flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-secondary shadow-sm"></div>
+                        CLUSTER: PAYMENT_LIFECYCLE
+                    </div>
+<!-- Dense Node Card -->
+<div class="bg-surface-container border border-outline-variant rounded p-4 shadow-sm hover:border-secondary hover:shadow-md transition-all cursor-crosshair">
+<div class="flex justify-between items-start mb-2">
+<h3 class="font-code-md text-code-md text-on-surface">POST /stripe/webhook</h3>
+</div>
+<p class="font-code-sm text-code-sm text-on-surface-variant mb-3 leading-relaxed">Handles asynchronous payment confirmations and subscription lifecycle events.</p>
+<div class="font-label-caps text-label-caps text-secondary bg-secondary/10 px-2 py-1 rounded inline-block border border-secondary/20">
+                            REQUIRES_SIG_VERIFY
+                        </div>
+</div>
+</div>
+<!-- Connection Lines (SVG) -->
+<svg class="absolute top-0 left-0 w-full h-full pointer-events-none z-0" style="opacity: 0.3;">
+<path d="M 400 300 Q 600 400, 800 600" fill="none" stroke="#5c403c" stroke-dasharray="4 4" stroke-width="1"></path>
+</svg>
+</div>
+</main>
+<!-- Right SideNavBar (INTELLIGENCE_SIDEBAR) -->
+<aside class="bg-surface docked h-full right-0 border-l border-outline-variant w-72 fixed right-0 top-12 flex flex-col z-40">
+<div class="p-4 border-b border-outline-variant flex items-center gap-3 bg-surface-container-low">
+<div class="w-8 h-8 bg-primary/10 border border-primary/30 rounded flex items-center justify-center">
+<span class="material-symbols-outlined text-primary text-[16px] animate-pulse">memory</span>
+</div>
+<div>
+<h2 class="font-label-caps text-label-caps text-on-surface uppercase">INTELLIGENCE_SIDEBAR</h2>
+<p class="font-code-sm text-code-sm text-on-surface-variant tracking-tight">GEMMA-4-E4B_ACTIVE</p>
+</div>
+</div>
+<!-- Tabs -->
+<div class="flex border-b border-outline-variant font-label-sm bg-surface-container-low">
+<a class="flex-1 text-primary border-b-2 border-primary px-3 py-3 flex items-center justify-center gap-2 font-medium" href="#">
+<span class="material-symbols-outlined text-[16px]">auto_awesome</span>
+                    Intelligence
+                </a>
+<a class="flex-1 text-on-surface-variant px-3 py-3 flex items-center justify-center gap-2 hover:bg-surface-container hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">difference</span>
+                    Diffs
+                </a>
+</div>
+<!-- Panel Content -->
+<div class="flex-1 overflow-y-auto p-4 flex flex-col gap-6 bg-surface-container-low scrollbar-hide">
+<!-- Target Identification -->
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mb-2">TARGET_NODE</div>
+<div class="bg-surface border border-outline-variant rounded p-3 font-code-sm text-code-sm text-on-surface break-all shadow-sm">
+<span class="text-primary font-bold">POST</span> /v2/auth/verify-token
+                    </div>
+</div>
+<!-- Gemma Analysis -->
+<div>
+<div class="font-label-caps text-label-caps text-primary mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">psychology</span>
+                        GEMMA-4_ANALYSIS
+                    </div>
+<div class="text-body-sm font-body-sm text-on-surface leading-relaxed border-l-2 border-primary pl-3 py-1">
+                        Anomaly detected in token validation sequence. Current implementation relies on cached JWKS keys extending beyond the mandatory 5-minute TTL prescribed by security policy <span class="font-code-sm text-on-surface bg-surface-variant px-1 rounded border border-outline-variant">SEC-REQ-04</span>.
+                    </div>
+</div>
+<!-- WASM Hooks -->
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mb-2 flex items-center gap-2">
+<span class="material-symbols-outlined text-[16px]">terminal</span>
+                        WASM_HOOK_OPPORTUNITIES
+                    </div>
+<div class="flex flex-col gap-2">
+<div class="border border-outline-variant rounded bg-surface-container-high p-3 flex justify-between items-center group cursor-pointer hover:border-primary shadow-sm transition-colors">
+<span class="font-code-sm text-code-sm text-on-surface">Pre_Validate_Hook</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary text-[18px]">add</span>
+</div>
+<div class="border border-outline-variant rounded bg-surface-container-high p-3 flex justify-between items-center group cursor-pointer hover:border-primary shadow-sm transition-colors">
+<span class="font-code-sm text-code-sm text-on-surface">Post_Claim_Extract</span>
+<span class="material-symbols-outlined text-outline group-hover:text-primary text-[18px]">add</span>
+</div>
+</div>
+</div>
+<!-- Contract Diffs Preview -->
+<div>
+<div class="font-label-caps text-label-caps text-on-surface-variant mb-2">CONTRACT_DIFF (PROPOSED)</div>
+<div class="bg-surface-container border border-outline-variant rounded p-4 font-code-sm text-code-sm flex flex-col gap-2 shadow-sm">
+<div class="text-error line-through bg-error/10 px-1 -mx-1">- ttl: 3600s</div>
+<div class="text-secondary bg-secondary/10 px-1 -mx-1">+ ttl: 300s</div>
+<div class="text-secondary bg-secondary/10 px-1 -mx-1">+ enforce_strict_bounds: true</div>
+</div>
+<button class="mt-4 w-full bg-primary text-on-primary rounded font-label-sm text-label-sm py-2.5 hover:bg-primary/90 transition-colors flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-[16px]">bolt</span>
+                        Apply Patch
+                    </button>
+</div>
+</div>
+</aside>
+</div>
+<!-- Footer -->
+<footer class="bg-surface fixed bottom-0 w-full border-t border-outline-variant flat no shadows flex justify-between items-center px-4 h-8 z-50">
+<div class="text-on-surface-variant font-medium font-label-caps text-label-caps uppercase tracking-wider">
+            MINNAL_CORE_SYSTEM_2024
+        </div>
+<div class="flex items-center gap-6 font-code-sm text-[10px] uppercase font-semibold text-on-surface-variant">
+<span class="hover:text-primary cursor-crosshair transition-colors">LATENCY: 12ms</span>
+<span class="hover:text-primary cursor-crosshair transition-colors">MODEL: GEMMA-4-E4B</span>
+<span class="hover:text-primary cursor-crosshair transition-colors">CPU: 04%</span>
+<span class="text-secondary hover:text-primary cursor-crosshair transition-colors flex items-center gap-1">
+<div class="w-2 h-2 bg-secondary rounded-full animate-pulse shadow-sm"></div>
+                STATUS: OPTIMAL
+            </span>
+</div>
+</footer>
+</body></html>

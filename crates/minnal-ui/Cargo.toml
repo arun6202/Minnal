@@ -1,0 +1,18 @@
+﻿[package]
+name = "minnal-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "WinUI 3 shell"
+
+[dependencies]
+minnal-core = { path = "../minnal-core" }
+minnal-ai = { path = "../minnal-ai" }
+minnal-hooks = { path = "../minnal-hooks" }
+minnal-store = { path = "../minnal-store" }
+
+[lints]
+workspace = true
