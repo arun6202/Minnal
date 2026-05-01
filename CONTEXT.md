@@ -4,7 +4,7 @@
 
 ---
 
-## Project State: PHASE 0 IN PROGRESS
+## Project State: PHASE 0 COMPLETE - PHASE 0.5 READY
 ## Sprint: 0 - Foundation
 ## Date: 2026-05-01
 
@@ -60,7 +60,7 @@ See Minnal.md and plan.md for full detail. Summary:
 [x] design/Minnal-store/V001.md design pack authored
 [x] phase-0-and-0.5.md task script authored
 [x] Minnal-ui V001 design direction authored: execution-first workbench, contextual Why drawer, semantic canvas as mode
-[x] Phase 0 Cargo workspace scaffold verified locally; commit in progress
+[x] Phase 0 Cargo workspace scaffold committed and pushed
 ```
 
 ---
@@ -69,23 +69,21 @@ See Minnal.md and plan.md for full detail. Summary:
 
 ```
 Crate:    workspace root
-Task:     Complete Phase 0 foundation scaffold
+Task:     Begin Phase 0.5 spike preparation
 
 Steps:
-  1. Verify Cargo workspace builds clean.
-  2. Verify each crate builds independently.
-  3. Verify CI workflow is present.
-  4. Commit: "chore: initialise Minnal workspace"
-  5. Push origin/main.
+  1. Review Phase 0 scaffold structure.
+  2. Run Spike A: WinUI 3 + Rust hello-window.
+  3. Run Spike B: llama.cpp + DirectML smoke test.
+  4. Run Spike C: sqlite-vec Windows load.
+  5. Record outcomes in CONTEXT.md.
 
 Constraints:
-  - Skeleton only; no feature implementation yet.
-  - minnal-core and minnal-store have no internal deps.
-  - Cargo.lock is committed.
-  - No model weights, SQLite DBs, secrets, or session transcripts committed.
-  - License headers in every lib.rs.
+  - Spikes live outside production crates unless explicitly promoted.
+  - No feature implementation before spike outcomes are recorded.
+  - Any fallback decision updates plan.md and relevant design packs.
 
-Review gate: Claude reviews workspace structure before any crate feature work begins.
+Review gate: Claude reviews scaffold and spike outcomes before Phase 1 begins.
 ```
 
 ---
@@ -121,6 +119,7 @@ Task: Review Phase 0 scaffold, Minnal-ui V001 direction, and prepare Phase 0.5 s
 
 *Update this file at the end of every session.*
 *Never Settle.*
+
 
 
 

@@ -38,3 +38,4 @@ Remote: git@github.com:arun6202/Minnal.git
 - Raw CLI transcript files remain ignored via `sessions/*.txt`.
 - Curated progress notes under `sessions/*.md` are committed.
 
+
