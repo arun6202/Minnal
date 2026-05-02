@@ -78,6 +78,10 @@ small,
     color: #71e6c2;
 }
 
+.warn {
+    color: #e4b363;
+}
+
 .primary {
     background: #1e6f5c;
 }

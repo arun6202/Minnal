@@ -255,8 +255,10 @@ type WorkbenchSnapshot =
 
 type MemoryTelemetry =
     {
-        WorkingSetMb: NonNegativeInt
+        HostProcessMb: NonNegativeInt
         ManagedHeapMb: NonNegativeInt
+        WebView2TreeMb: NonNegativeInt  // all msedgewebview2 processes; may over-count if other WebView2 apps run concurrently
+        ProcessTreeMb: NonNegativeInt   // HostProcessMb + WebView2TreeMb
         WebViewPolicy: NonEmptyText
     }
 
@@ -331,8 +333,10 @@ type WorkbenchSnapshotView =
 [<CLIMutable>]
 type MemoryTelemetryView =
     {
-        WorkingSetMb: int
+        HostProcessMb: int
         ManagedHeapMb: int
+        WebView2TreeMb: int
+        ProcessTreeMb: int
         WebViewPolicy: string
     }
 
@@ -632,11 +636,24 @@ module private MemoryTelemetry =
 
     let fromCurrentProcess () : Result<MemoryTelemetry, DomainError> =
         result {
-            let currentProcess = Process.GetCurrentProcess()
-            let workingSetMb = int (currentProcess.WorkingSet64 / 1024L / 1024L)
-            let managedHeapMb = int (GC.GetTotalMemory(false) / 1024L / 1024L)
-            let! workingSetMb = NonNegativeInt.create "working set MB" workingSetMb
+            let hostMb =
+                int (Process.GetCurrentProcess().WorkingSet64 / 1024L / 1024L)
+            let managedHeapMb =
+                int (GC.GetTotalMemory(false) / 1024L / 1024L)
+            // Sum all msedgewebview2 child processes. BlazorWebView spawns 3-5 of these
+            // (browser, renderer, GPU, GPU-info, crash handler). May over-count by
+            // ~50 MB if another WebView2-based app is running concurrently.
+            let webView2Mb =
+                Process.GetProcessesByName("msedgewebview2")
+                |> Array.sumBy (fun p ->
+                    try p.WorkingSet64 / 1024L / 1024L |> int
+                    with _ -> 0)
+            let treeMb = hostMb + webView2Mb
+
+            let! hostProcessMb = NonNegativeInt.create "host process MB" hostMb
             let! managedHeapMb = NonNegativeInt.create "managed heap MB" managedHeapMb
+            let! webView2TreeMb = NonNegativeInt.create "WebView2 tree MB" webView2Mb
+            let! processTreeMb = NonNegativeInt.create "process tree MB" treeMb
             let! webViewPolicy =
                 NonEmptyText.create
                     "WebView policy"
@@ -644,8 +661,10 @@ module private MemoryTelemetry =
 
             return
                 ({
-                    WorkingSetMb = workingSetMb
+                    HostProcessMb = hostProcessMb
                     ManagedHeapMb = managedHeapMb
+                    WebView2TreeMb = webView2TreeMb
+                    ProcessTreeMb = processTreeMb
                     WebViewPolicy = webViewPolicy
                 } : MemoryTelemetry)
         }
@@ -671,8 +690,10 @@ module private StorageSnapshot =
 module private ViewProjection =
     let memoryTelemetryToView (telemetry: MemoryTelemetry) : MemoryTelemetryView =
         {
-            WorkingSetMb = NonNegativeInt.value telemetry.WorkingSetMb
+            HostProcessMb = NonNegativeInt.value telemetry.HostProcessMb
             ManagedHeapMb = NonNegativeInt.value telemetry.ManagedHeapMb
+            WebView2TreeMb = NonNegativeInt.value telemetry.WebView2TreeMb
+            ProcessTreeMb = NonNegativeInt.value telemetry.ProcessTreeMb
             WebViewPolicy = NonEmptyText.value telemetry.WebViewPolicy
         }
 
@@ -796,8 +817,10 @@ type WorkbenchService() =
             | Ok telemetry -> ViewProjection.memoryTelemetryToView telemetry
             | Error telemetryError ->
                 {
-                    WorkingSetMb = 0
+                    HostProcessMb = 0
                     ManagedHeapMb = 0
+                    WebView2TreeMb = 0
+                    ProcessTreeMb = 0
                     WebViewPolicy = telemetryError.Message
                 }
         let storage: StorageSnapshotView =

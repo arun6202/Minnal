@@ -120,10 +120,11 @@
         <span class="ok">Offline</span>
         <span>SQLite: ready</span>
         <span>AI: on-demand</span>
-        <span>Working set: @telemetry.WorkingSetMb MB</span>
-        <span>Managed heap: @telemetry.ManagedHeapMb MB</span>
+        <span class="@(telemetry.ProcessTreeMb > model.ColdTargetMb ? "warn" : "ok")">Tree: @telemetry.ProcessTreeMb MB / @model.ColdTargetMb MB target</span>
+        <span>Host: @telemetry.HostProcessMb MB</span>
+        <span>WebView2: @telemetry.WebView2TreeMb MB</span>
+        <span>Heap: @telemetry.ManagedHeapMb MB</span>
         <span>Requests: @storage.RequestCount</span>
         <span>Bodies: @storage.ResponseBodiesStored</span>
-        <span>@platform.RenderPolicy</span>
     </footer>
 </main>
