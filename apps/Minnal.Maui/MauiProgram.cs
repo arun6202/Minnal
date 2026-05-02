@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 using Minnal.AppModel;
-using Minnal.Maui.Services;
 
 namespace Minnal.Maui;
 

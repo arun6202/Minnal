@@ -3,6 +3,11 @@ namespace Minnal.AppModel
 open System
 open System.Diagnostics
 open System.IO
+open System.Net.Http
+open System.Text
+open System.Threading.Tasks
+open LLama
+open LLama.Common
 open Microsoft.Data.Sqlite
 
 type DomainError =
@@ -11,6 +16,7 @@ type DomainError =
     | NonPositiveDecimal of Field: string * Value: decimal
     | InvalidHttpStatusCode of Value: int
     | StorageFailure of Operation: string * Reason: string
+    | RuntimeFailure of Operation: string * Reason: string
 
     member this.Message =
         match this with
@@ -19,6 +25,7 @@ type DomainError =
         | NonPositiveDecimal (field, value) -> $"{field} must be greater than zero; got {value}."
         | InvalidHttpStatusCode value -> $"HTTP status code must be between 100 and 599; got {value}."
         | StorageFailure (operation, reason) -> $"{operation} failed: {reason}"
+        | RuntimeFailure (operation, reason) -> $"{operation} failed: {reason}"
 
 type ResultBuilder() =
     member _.Bind(value, binder) = Result.bind binder value
@@ -354,6 +361,17 @@ type WorkbenchView =
         Snapshot: WorkbenchSnapshotView
         Telemetry: MemoryTelemetryView
         Storage: StorageSnapshotView
+    }
+
+[<CLIMutable>]
+type HttpResultView =
+    {
+        StatusCode: int
+        Body: string
+        DurationMs: int64
+        SizeBytes: int64
+        IsError: bool
+        ErrorMessage: string
     }
 
 module private RequestDraft =
@@ -704,6 +722,226 @@ module private ViewProjection =
             ResponseBodiesStored = NonNegativeInt.value storage.ResponseBodiesStored
         }
 
+type AiRuntimeState =
+    | AiOffRuntime
+    | AiLoadingRuntime
+    | AiReadyRuntime
+    | AiBlockedRuntime of NonEmptyText
+
+module private AiRuntimeState =
+    let display state =
+        match state with
+        | AiOffRuntime -> "Off"
+        | AiLoadingRuntime -> "Loading"
+        | AiReadyRuntime -> "Ready"
+        | AiBlockedRuntime reason -> $"Blocked: {NonEmptyText.value reason}"
+
+    let isReady state =
+        match state with
+        | AiReadyRuntime -> true
+        | AiOffRuntime
+        | AiLoadingRuntime
+        | AiBlockedRuntime _ -> false
+
+type BundledGgufPath = private BundledGgufPath of string
+
+module private BundledGgufPath =
+    let value (BundledGgufPath path) = path
+
+    let findFirst () : Result<BundledGgufPath, DomainError> =
+        let root = AppContext.BaseDirectory
+
+        try
+            Directory.GetFiles(root, "*.gguf", SearchOption.AllDirectories)
+            |> Array.tryHead
+            |> function
+                | Some path -> Ok(BundledGgufPath path)
+                | None -> Error(RuntimeFailure("find bundled GGUF", $"No .gguf file was found under app directory {root}"))
+        with ex ->
+            Error(RuntimeFailure("find bundled GGUF", ex.Message))
+
+module private HttpResultView =
+    let create statusCode body durationMs sizeBytes isError errorMessage : HttpResultView =
+        {
+            StatusCode = statusCode
+            Body = body
+            DurationMs = durationMs
+            SizeBytes = sizeBytes
+            IsError = isError
+            ErrorMessage = errorMessage
+        }
+
+// ⚠️ Interop port: MAUI/Razor consumes this from C#-generated component code.
+// Correct F# idiom remains the DU/state modules above; this is a projection boundary.
+type IAiService =
+    abstract member State: string
+    abstract member StatusText: string
+    abstract member IsReady: bool
+    abstract member LoadAsync: unit -> Task
+    abstract member ExplainAsync: prompt: string -> Task<string>
+
+// ⚠️ Interop port: Razor needs a service-shaped port. Domain callers should prefer
+// pure request descriptions plus an executor boundary returning Result.
+type IHttpExecutionService =
+    abstract member SendAsync: methodText: string * url: string -> Task<HttpResultView>
+
+// ⚠️ Mutable lifetime adapter: the llama.cpp model handle is stateful, disposable, and
+// expensive. Mutation is confined to this singleton boundary; no domain type depends on it.
+type LlamaAiService() =
+    let gate = obj()
+    let mutable runtimeState = AiOffRuntime
+    let mutable statusText = "Bundled model not loaded"
+    let mutable weights: LLamaWeights option = None
+    let mutable modelParams: ModelParams option = None
+
+    let setState state text =
+        lock gate (fun () ->
+            runtimeState <- state
+            statusText <- text)
+
+    let currentState () =
+        lock gate (fun () -> runtimeState, statusText, weights, modelParams)
+
+    let loadSync () =
+        setState AiLoadingRuntime "Scanning bundled app content for GGUF..."
+
+        match BundledGgufPath.findFirst () with
+        | Error error ->
+            match NonEmptyText.create "AI blocked reason" error.Message with
+            | Ok reason -> setState (AiBlockedRuntime reason) error.Message
+            | Error _ -> setState AiOffRuntime "AI model discovery failed"
+        | Ok gguf ->
+            try
+                let path = BundledGgufPath.value gguf
+                let loadedParams = ModelParams(path)
+                loadedParams.ContextSize <- 512u
+                loadedParams.GpuLayerCount <- 0
+
+                let loadedWeights = LLamaWeights.LoadFromFile(loadedParams)
+
+                lock gate (fun () ->
+                    weights <- Some loadedWeights
+                    modelParams <- Some loadedParams
+                    runtimeState <- AiReadyRuntime
+                    statusText <- Path.GetFileName(path))
+            with ex ->
+                match NonEmptyText.create "AI load failure" ex.Message with
+                | Ok reason -> setState (AiBlockedRuntime reason) $"Load failed: {ex.Message}"
+                | Error _ -> setState AiOffRuntime "AI load failed"
+
+    interface IAiService with
+        member _.State =
+            let state, _, _, _ = currentState ()
+            AiRuntimeState.display state
+
+        member _.StatusText =
+            let _, text, _, _ = currentState ()
+            text
+
+        member _.IsReady =
+            let state, _, _, _ = currentState ()
+            AiRuntimeState.isReady state
+
+        member _.LoadAsync() =
+            Task.Run(fun () -> loadSync ())
+
+        member _.ExplainAsync(prompt: string) =
+            task {
+                let state, text, loadedWeights, loadedParams = currentState ()
+
+                match state, loadedWeights, loadedParams with
+                | AiReadyRuntime, Some weights, Some modelParams ->
+                    let executor = StatelessExecutor(weights, modelParams)
+
+                    let inferenceParams =
+                        InferenceParams(
+                            MaxTokens = 256,
+                            AntiPrompts = [| "\n\nUser:"; "###"; "<|end|>" |])
+
+                    let fullPrompt =
+                        $"Explain this HTTP response briefly:\n{prompt}\n\nExplanation:"
+
+                    let tokens = executor.InferAsync(fullPrompt, inferenceParams)
+                    let enumerator = tokens.GetAsyncEnumerator()
+                    let builder = StringBuilder()
+
+                    try
+                        let mutable hasToken = true
+
+                        while hasToken do
+                            let! moved = enumerator.MoveNextAsync().AsTask()
+                            hasToken <- moved
+
+                            if moved then
+                                builder.Append(enumerator.Current) |> ignore
+                    finally
+                        enumerator.DisposeAsync().AsTask().Wait()
+
+                    return builder.ToString().Trim()
+
+                | _ ->
+                    return $"[AI {AiRuntimeState.display state}: {text}]"
+            }
+
+    interface IDisposable with
+        member _.Dispose() =
+            let loadedWeights =
+                lock gate (fun () ->
+                    let loaded = weights
+                    weights <- None
+                    modelParams <- None
+                    runtimeState <- AiOffRuntime
+                    statusText <- "Disposed"
+                    loaded)
+
+            loadedWeights
+            |> Option.iter (fun model -> model.Dispose())
+
+// ⚠️ Adapter: HttpClient is class/disposable based. Request execution is an effect boundary;
+// domain logic must still describe requests as values before reaching this adapter.
+type HttpExecutionService() =
+    let client =
+        new HttpClient(
+            new HttpClientHandler(AllowAutoRedirect = true),
+            Timeout = TimeSpan.FromSeconds(30.0))
+
+    interface IHttpExecutionService with
+        member _.SendAsync(methodText: string, url: string) =
+            task {
+                let sw = Stopwatch.StartNew()
+
+                try
+                    use request = new HttpRequestMessage(HttpMethod(methodText), url)
+                    request.Headers.UserAgent.ParseAdd("Minnal/0.1 (spike)")
+
+                    use! response = client.SendAsync(request)
+                    let! responseBody = response.Content.ReadAsStringAsync()
+                    sw.Stop()
+
+                    return
+                        HttpResultView.create
+                            (int response.StatusCode)
+                            responseBody
+                            sw.ElapsedMilliseconds
+                            (int64 (Encoding.UTF8.GetByteCount responseBody))
+                            (not response.IsSuccessStatusCode)
+                            ""
+                with ex ->
+                    sw.Stop()
+
+                    return
+                        HttpResultView.create
+                            0
+                            ""
+                            sw.ElapsedMilliseconds
+                            0L
+                            true
+                            ex.Message
+            }
+
+    interface IDisposable with
+        member _.Dispose() = client.Dispose()
+
 // ⚠️ Interop adapter: ADO.NET is class/disposable based. The F# domain above stays in DUs,
 // smart constructors, and pure projection modules; this class is the database boundary.
 type SqliteWorkbenchStore(databasePath: string) =
@@ -804,8 +1042,8 @@ type IWorkbenchService =
 type WorkbenchService() =
     let databasePath =
         Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "Minnal",
+            AppContext.BaseDirectory,
+            "state",
             "maui-spike.sqlite")
 
     let store = SqliteWorkbenchStore(databasePath)

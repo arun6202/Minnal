@@ -1,5 +1,4 @@
 @page "/"
-@using Minnal.Maui.Services
 @inject IWorkbenchService Workbench
 @inject IAiService Ai
 @inject IHttpExecutionService Http
@@ -47,7 +46,7 @@
             <div class="rail-title">Model</div>
             <strong>@model.Mode</strong>
             <p>@model.Backend</p>
-            <small>AI: @Ai.State — @Ai.StatusText</small>
+            <small>AI: @Ai.State - @Ai.StatusText</small>
         </article>
 
         <article class="model-panel compact">
@@ -149,7 +148,7 @@
     <footer class="statusbar">
         <span class="ok">Offline</span>
         <span>SQLite: ready</span>
-        <span class="@(Ai.State == AiState.Ready ? "ok" : "warn")">AI: @Ai.State</span>
+        <span class="@(Ai.IsReady ? "ok" : "warn")">AI: @Ai.State</span>
         <span class="@(telemetry.ProcessTreeMb > model.ColdTargetMb ? "warn" : "ok")">Tree: @telemetry.ProcessTreeMb MB / @model.ColdTargetMb MB target</span>
         <span>Host: @telemetry.HostProcessMb MB</span>
         <span>WebView2: @telemetry.WebView2TreeMb MB</span>
@@ -161,7 +160,7 @@
 
 @code {
     private Minnal.AppModel.WorkbenchView _view = default!;
-    private HttpResult? _liveResponse;
+    private HttpResultView? _liveResponse;
     private string _aiExplanation = "";
     private bool _sending;
     private bool _explaining;

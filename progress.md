@@ -4,6 +4,110 @@
 
 ---
 
+## Session 4 — 2026-05-02 — F# service law + bundled GGUF policy
+
+### What changed
+
+| Item | File(s) | Status |
+|---|---|---|
+| Removed C# AI service | Services/AiService.cs | Done |
+| Removed C# HTTP service | Services/HttpExecutionService.cs | Done |
+| F# AI service port/adapter | Minnal.AppModel/Library.fs | Done |
+| F# HTTP execution port/adapter | Minnal.AppModel/Library.fs | Done |
+| LLamaSharp ownership moved to F# project | Minnal.AppModel.fsproj | Done |
+| MAUI host remains DI glue only | MauiProgram.cs | Done |
+| Model lookup changed from AppData to bundled app content | Library.fs | Done |
+| SQLite spike DB moved from AppData to app-local `state/` | Library.fs | Done |
+| Bundled model asset folder | Resources/Raw/ai/ | Done |
+
+### F# law status
+
+Durable service logic now lives in F#:
+
+- `IAiService`
+- `LlamaAiService`
+- `IHttpExecutionService`
+- `HttpExecutionService`
+- `HttpResultView`
+- bundled GGUF path discovery
+
+C# is back to thin MAUI glue: app startup, DI registration, and Razor rendering.
+
+Known weakness: service-shaped interfaces and mutable model lifetime are still interop adapters. They are marked with warning comments in F# because MAUI DI, `HttpClient`, SQLite, and LLamaSharp are class/disposable APIs. The domain state remains DU/smart-constructor based.
+
+### Bundled GGUF policy
+
+The app no longer reads model weights from:
+
+```text
+%LOCALAPPDATA%\Minnal\models\
+```
+
+Instead, it scans the installed app content directory for `*.gguf`.
+
+Spike source location:
+
+```text
+apps/Minnal.Maui/Resources/Raw/ai/
+```
+
+Package rule: put the GGUF under `Resources/Raw/ai/` before packaging. The model is then carried with the app content. No model download or AppData model folder is required.
+
+Current measurement has no GGUF bundled:
+
+```text
+BUNDLED_GGUF_COUNT=0
+```
+
+### SQLite policy
+
+The spike DB moved from `%LOCALAPPDATA%` to:
+
+```text
+<app-base>/state/maui-spike.sqlite
+```
+
+This satisfies the current "all app stuff lives with the app" spike rule.
+
+Known weakness: installed/mobile app bundles are commonly read-only. Before store/mobile packaging, writable state needs a platform-specific decision. For now, the unpackaged Windows spike can write beside the app output.
+
+### Memory — Debug, no bundled model
+
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe (host) | 161.3 |
+| msedgewebview2 — renderer/browser | 154.6 |
+| msedgewebview2 — GPU/browser support | 63.5 |
+| msedgewebview2 — GPU-info | 34.1 |
+| msedgewebview2 — crash handler | 18.4 |
+| msedgewebview2 — spare renderer | 9.6 |
+| **TOTAL HOST + NEW WEBVIEW2** | **441.5 MB** |
+
+### Memory — Release, no trim, no bundled model
+
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe (host) | 152.5 |
+| msedgewebview2 — renderer/browser | 154.6 |
+| msedgewebview2 — GPU/browser support | 63.5 |
+| msedgewebview2 — GPU-info | 34.1 |
+| msedgewebview2 — crash handler | 18.4 |
+| msedgewebview2 — spare renderer | 9.5 |
+| **TOTAL HOST + NEW WEBVIEW2** | **432.7 MB** |
+
+### Current AI state
+
+AI is wired but blocked until a GGUF is bundled into app content.
+
+```text
+Off -> Loading -> Ready   (GGUF found under installed app content)
+Off -> Loading -> Blocked (no bundled GGUF found)
+```
+
+No GGUF has been committed. A real model file must be supplied as a release artifact or intentionally added to the package input.
+
+---
+
 ## Session 3 — 2026-05-02 — WebView2 memory flags + trim investigation
 
 ### What changed
@@ -90,9 +194,9 @@ Current position: **do not use trimmed Release for Windows MAUI yet**. Use Debug
 
 | Item | File(s) | Status |
 |---|---|---|
-| LLamaSharp 0.27.0 + Backend.Cpu | Minnal.Maui.csproj | Done |
-| AiService (graceful no-model blocked state) | Services/AiService.cs | Done |
-| HttpExecutionService (real HttpClient) | Services/HttpExecutionService.cs | Done |
+| LLamaSharp 0.27.0 + Backend.Cpu | Minnal.AppModel.fsproj | Done |
+| AiService (graceful no-model blocked state) | Minnal.AppModel/Library.fs | Done |
+| HttpExecutionService (real HttpClient) | Minnal.AppModel/Library.fs | Done |
 | DI registration of both services | MauiProgram.cs | Done |
 | Home.razor — interactive buttons wired | Components/Pages/Home.razor | Done |
 | Active request → GET https://api.github.com/zen | Library.fs + SQLite seed | Done |
@@ -110,7 +214,7 @@ Current position: **do not use trimmed Release for Windows MAUI yet**. Use Debug
 ### AI state machine
 
 ```
-Off → Loading → Ready   (GGUF found at %LOCALAPPDATA%\Minnal\models\)
+Off → Loading → Ready   (GGUF found under installed app content)
 Off → Loading → Blocked (no GGUF found)
 ```
 
@@ -232,7 +336,7 @@ The 350 MB target requires NativeAOT or a structural change (e.g. WPF host inste
 | Centre request workbench | Rendered | Send wired → real HTTP; live response shown |
 | Right Why drawer | Rendered | Shows AI explanation after Explain click |
 | Bottom status strip | Rendered | Tree/Host/WebView2/Heap live; AI state live |
-| AI loading (LLamaSharp) | Wired, Blocked | No GGUF at %LOCALAPPDATA%\Minnal\models\ |
+| AI loading (LLamaSharp) | Wired, Blocked | No bundled GGUF under app content |
 | Real HTTP execution | Wired | GET api.github.com/zen fires from Send |
 | Playground (zero-persist) | Not started | Phase 4 M7 |
 | Semantic canvas | Not started | Phase 4 M3 |
@@ -240,14 +344,14 @@ The 350 MB target requires NativeAOT or a structural change (e.g. WPF host inste
 
 ---
 
-## AI Blocker — No GGUF Model
+## AI Blocker — No Bundled GGUF Model
 
-Architecture law: model weights must NOT be bundled in repo or installer.
+Current product law: model weights are bundled with the app package, not read from AppData.
 
 To unblock AI:
 1. Download a GGUF model (e.g. gemma-3-1b-it-q4_k_m.gguf or phi-3-mini-4k-instruct-q4.gguf)
-2. Place at: `%LOCALAPPDATA%\Minnal\models\<any-name>.gguf`
-3. Restart Minnal — AI state will transition Off → Loading → Ready
+2. Place it under: `apps/Minnal.Maui/Resources/Raw/ai/`
+3. Rebuild/package Minnal — AI state will transition Off → Loading → Ready
 
 Recommended for spike (fits in 4 GB RAM): **gemma-3-1b-it-q4_k_m.gguf** (~800 MB)
 
@@ -257,9 +361,9 @@ Recommended for spike (fits in 4 GB RAM): **gemma-3-1b-it-q4_k_m.gguf** (~800 MB
 
 ### Immediate (next session)
 
-1. **Place GGUF model** — unlock Explain button end-to-end
+1. **Bundle GGUF model** — unlock Explain button end-to-end
    - Download: `winget install -e --id HuggingFace.HuggingFaceCLI` then `huggingface-cli download google/gemma-3-1b-it-gguf`
-   - Or direct download from HuggingFace to `%LOCALAPPDATA%\Minnal\models\`
+   - Put the `.gguf` under `apps/Minnal.Maui/Resources/Raw/ai/`
 
 2. **Test Send + Explain live** — GET api.github.com/zen → AI explains the zen quote
    - Measure process tree with model loaded (warm baseline)
