@@ -23,7 +23,18 @@ dotnet build apps\Minnal.Maui\Minnal.Maui.csproj -f net10.0-windows10.0.19041.0
 
 Build result: success.
 
-One warning remains: NuGet vulnerability metadata could not be fetched during restore. Package restore and compilation still succeeded.
+The app has also been launched from the built Windows output. It stayed running long enough to sample memory and initialise SQLite.
+
+Cold shell sample after roughly 8 seconds:
+
+```text
+Minnal.Maui host process:      160.2 MB
+Minnal process tree total:     503.2 MB
+SQLite database created at:    %LOCALAPPDATA%\Minnal\maui-spike.sqlite
+SQLite database size:          28,672 bytes
+```
+
+This means the MAUI Blazor shell is viable, but not cheap. The process-tree sample includes WebView2 children and is already above the original 350 MB cold target. The right next action is measurement and reduction, not pretending this is lightweight.
 
 ## What Went Well
 
@@ -45,6 +56,16 @@ The first F# project compiles and is referenced by the MAUI app. Current F# type
 - hook review state
 - platform policy
 - workbench snapshot factory
+
+After the F# law update, the F# model now uses:
+
+- single-case DUs for constrained values
+- DUs for HTTP method, auth scheme, AI lifecycle, backend state, hook phase, and platform host
+- smart constructors returning `Result<_, DomainError>`
+- separate UI projection records for Razor interop
+- an injected workbench service for MAUI
+- SQLite boundary adapter returning `Result`
+- memory telemetry boundary adapter
 
 This is the right separation: MAUI hosts and renders; F# owns product state and later domain logic.
 
@@ -101,9 +122,13 @@ MAUI is heavier than Windows-only stacks.
 
 Compared with WPF/WinForms/Rust-native shells, MAUI Blazor Hybrid has more baseline memory cost. That cost buys cross-platform reach. Since cross-platform is a requirement, the right response is measurement and lifecycle discipline, not dropping MAUI prematurely.
 
-The current UI is static.
+The first actual cold process-tree sample is around 503 MB.
 
-The first screen is a high-fidelity static shell backed by F# snapshot data. It does not yet execute requests, persist anything, load models, or run hooks.
+That is higher than the aspirational 350 MB cold-shell target. This is the clearest weakness in the MAUI Blazor path. It does not kill the path, because local AI model memory will still dominate, but it means the memory gate must be treated as a product requirement, not a nice-to-have.
+
+The current UI is partially static.
+
+The first screen is a high-fidelity shell backed by F# state. It now initialises SQLite, stores demo request metadata, stores a demo response body out of UI state, and displays memory/storage telemetry. It does not yet execute real HTTP requests, load models, or run hooks.
 
 That is intentional. The branch is proving the shell direction and architecture shape first.
 
@@ -274,7 +299,7 @@ This style is slower to scaffold than C#-shaped F#, but it will make Minnal safe
    - Show WebView/model state.
 
 3. Add a real app-state service in F#.
-   - Replace `WorkbenchSnapshotFactory.Create()` with an injectable state service.
+   - Done for the spike: Razor now consumes an injected `IWorkbenchService`.
    - Keep UI state small and immutable where practical.
 
 4. Add platform capability detection.
@@ -284,13 +309,14 @@ This style is slower to scaffold than C#-shaped F#, but it will make Minnal safe
    - local model availability.
 
 5. Add SQLite next, before AI.
-   - Store request metadata.
-   - Store response bodies out of UI memory.
-   - Prove cross-platform SQLite packaging.
+   - Done for the spike: `Microsoft.Data.Sqlite` restores/builds and emits `e_sqlite3.dll` in the Windows output.
+   - Demo request metadata is stored.
+   - Demo response body is stored in `response_bodies`.
+   - Next: replace demo seeding with real repository functions.
 
 6. Add AI lifecycle as a stub first.
-   - States: `Off`, `Loading`, `ReadyWarm`, `Busy`, `Unloading`, `Blocked`.
-   - Do not integrate a real model until the lifecycle is visible and measurable.
+   - Done in the F# model: `AiOff`, `AiLoading`, `AiReadyWarm`, `AiBusy`, `AiUnloading`, `AiBlocked`.
+   - Next: wire buttons to lifecycle transitions without loading a model.
 
 7. Decide whether to split `Minnal.Web`.
    - Keep Razor components inside `Minnal.Maui` for now.

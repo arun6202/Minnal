@@ -1,12 +1,16 @@
 namespace Minnal.AppModel
 
 open System
+open System.Diagnostics
+open System.IO
+open Microsoft.Data.Sqlite
 
 type DomainError =
     | EmptyText of Field: string
     | NegativeInteger of Field: string * Value: int
     | NonPositiveDecimal of Field: string * Value: decimal
     | InvalidHttpStatusCode of Value: int
+    | StorageFailure of Operation: string * Reason: string
 
     member this.Message =
         match this with
@@ -14,6 +18,7 @@ type DomainError =
         | NegativeInteger (field, value) -> $"{field} must be zero or greater; got {value}."
         | NonPositiveDecimal (field, value) -> $"{field} must be greater than zero; got {value}."
         | InvalidHttpStatusCode value -> $"HTTP status code must be between 100 and 599; got {value}."
+        | StorageFailure (operation, reason) -> $"{operation} failed: {reason}"
 
 type ResultBuilder() =
     member _.Bind(value, binder) = Result.bind binder value
@@ -147,6 +152,24 @@ module MemoryState =
         | ModelWarm -> "Model warm"
         | ModelLoaded -> "Model loaded"
 
+type AiLifecycle =
+    | AiOff
+    | AiLoading
+    | AiReadyWarm
+    | AiBusy
+    | AiUnloading
+    | AiBlocked of NonEmptyText
+
+module AiLifecycle =
+    let display state =
+        match state with
+        | AiOff -> "Off"
+        | AiLoading -> "Loading"
+        | AiReadyWarm -> "Ready warm"
+        | AiBusy -> "Busy"
+        | AiUnloading -> "Unloading"
+        | AiBlocked reason -> $"Blocked: {NonEmptyText.value reason}"
+
 type HookPhase =
     | Pre
     | Post
@@ -195,6 +218,7 @@ type ResponseSnapshot =
 type ModelState =
     {
         Mode: ModelMode
+        Lifecycle: AiLifecycle
         Backend: BackendState
         Memory: MemoryState
         UnloadPolicy: NonEmptyText
@@ -229,6 +253,20 @@ type WorkbenchSnapshot =
         Platform: PlatformState
     }
 
+type MemoryTelemetry =
+    {
+        WorkingSetMb: NonNegativeInt
+        ManagedHeapMb: NonNegativeInt
+        WebViewPolicy: NonEmptyText
+    }
+
+type StorageSnapshot =
+    {
+        DatabasePath: NonEmptyText
+        RequestCount: NonNegativeInt
+        ResponseBodiesStored: NonNegativeInt
+    }
+
 [<CLIMutable>]
 type RequestDraftView =
     {
@@ -252,6 +290,7 @@ type ResponseSnapshotView =
 type ModelStateView =
     {
         Mode: string
+        Lifecycle: string
         Backend: string
         Memory: string
         UnloadPolicy: string
@@ -287,6 +326,30 @@ type WorkbenchSnapshotView =
         Model: ModelStateView
         Hook: HookStateView
         Platform: PlatformStateView
+    }
+
+[<CLIMutable>]
+type MemoryTelemetryView =
+    {
+        WorkingSetMb: int
+        ManagedHeapMb: int
+        WebViewPolicy: string
+    }
+
+[<CLIMutable>]
+type StorageSnapshotView =
+    {
+        DatabasePath: string
+        RequestCount: int
+        ResponseBodiesStored: int
+    }
+
+[<CLIMutable>]
+type WorkbenchView =
+    {
+        Snapshot: WorkbenchSnapshotView
+        Telemetry: MemoryTelemetryView
+        Storage: StorageSnapshotView
     }
 
 module private RequestDraft =
@@ -329,7 +392,7 @@ module private ResponseSnapshot =
 module private ModelState =
     open ResultSyntax
 
-    let create (mode: ModelMode) (backend: BackendState) (memory: MemoryState) unloadPolicy coldTargetMb warmTargetMb : Result<ModelState, DomainError> =
+    let create (mode: ModelMode) (lifecycle: AiLifecycle) (backend: BackendState) (memory: MemoryState) unloadPolicy coldTargetMb warmTargetMb : Result<ModelState, DomainError> =
         result {
             let! unloadPolicy = NonEmptyText.create "model unload policy" unloadPolicy
             let! coldTargetMb = NonNegativeInt.create "cold memory target" coldTargetMb
@@ -338,6 +401,7 @@ module private ModelState =
             return
                 ({
                     Mode = mode
+                    Lifecycle = lifecycle
                     Backend = backend
                     Memory = memory
                     UnloadPolicy = unloadPolicy
@@ -401,6 +465,7 @@ module private Projection =
     let modelToView (model: ModelState) : ModelStateView =
         {
             Mode = ModelMode.display model.Mode
+            Lifecycle = AiLifecycle.display model.Lifecycle
             Backend = BackendState.display model.Backend
             Memory = MemoryState.display model.Memory
             UnloadPolicy = NonEmptyText.value model.UnloadPolicy
@@ -459,6 +524,7 @@ module private Projection =
             Model =
                 {
                     Mode = "Blocked"
+                    Lifecycle = "Blocked"
                     Backend = "Not initialised"
                     Memory = "Model unloaded"
                     UnloadPolicy = "No model may load while app state is invalid"
@@ -523,6 +589,7 @@ type WorkbenchSnapshotFactory =
             let! model =
                 ModelState.create
                     OnDemand
+                    AiOff
                     DirectMlDecisionPending
                     ModelUnloaded
                     "Unload after idle, memory pressure, or workspace switch"
@@ -559,3 +626,209 @@ type WorkbenchSnapshotFactory =
         match WorkbenchSnapshotFactory.Create() with
         | Ok snapshot -> Projection.toView snapshot
         | Error error -> Projection.errorView error
+
+module private MemoryTelemetry =
+    open ResultSyntax
+
+    let fromCurrentProcess () : Result<MemoryTelemetry, DomainError> =
+        result {
+            let currentProcess = Process.GetCurrentProcess()
+            let workingSetMb = int (currentProcess.WorkingSet64 / 1024L / 1024L)
+            let managedHeapMb = int (GC.GetTotalMemory(false) / 1024L / 1024L)
+            let! workingSetMb = NonNegativeInt.create "working set MB" workingSetMb
+            let! managedHeapMb = NonNegativeInt.create "managed heap MB" managedHeapMb
+            let! webViewPolicy =
+                NonEmptyText.create
+                    "WebView policy"
+                    "Single BlazorWebView; no hidden secondary WebViews"
+
+            return
+                ({
+                    WorkingSetMb = workingSetMb
+                    ManagedHeapMb = managedHeapMb
+                    WebViewPolicy = webViewPolicy
+                } : MemoryTelemetry)
+        }
+
+module private StorageSnapshot =
+    open ResultSyntax
+
+    let create databasePath requestCount responseBodiesStored : Result<StorageSnapshot, DomainError> =
+        result {
+            let! databasePath = NonEmptyText.create "SQLite database path" databasePath
+            let! requestCount = NonNegativeInt.create "request count" requestCount
+            let! responseBodiesStored =
+                NonNegativeInt.create "response bodies stored" responseBodiesStored
+
+            return
+                ({
+                    DatabasePath = databasePath
+                    RequestCount = requestCount
+                    ResponseBodiesStored = responseBodiesStored
+                } : StorageSnapshot)
+        }
+
+module private ViewProjection =
+    let memoryTelemetryToView (telemetry: MemoryTelemetry) : MemoryTelemetryView =
+        {
+            WorkingSetMb = NonNegativeInt.value telemetry.WorkingSetMb
+            ManagedHeapMb = NonNegativeInt.value telemetry.ManagedHeapMb
+            WebViewPolicy = NonEmptyText.value telemetry.WebViewPolicy
+        }
+
+    let storageToView (storage: StorageSnapshot) : StorageSnapshotView =
+        {
+            DatabasePath = NonEmptyText.value storage.DatabasePath
+            RequestCount = NonNegativeInt.value storage.RequestCount
+            ResponseBodiesStored = NonNegativeInt.value storage.ResponseBodiesStored
+        }
+
+// ⚠️ Interop adapter: ADO.NET is class/disposable based. The F# domain above stays in DUs,
+// smart constructors, and pure projection modules; this class is the database boundary.
+type SqliteWorkbenchStore(databasePath: string) =
+    let connectionString = $"Data Source={databasePath}"
+
+    let execute operation action =
+        try
+            Ok(action ())
+        with ex ->
+            Error(StorageFailure(operation, ex.Message))
+
+    member _.EnsureCreated() : Result<unit, DomainError> =
+        execute "create SQLite schema" (fun () ->
+            Directory.CreateDirectory(Path.GetDirectoryName(databasePath)) |> ignore
+
+            use connection = new SqliteConnection(connectionString)
+            connection.Open()
+
+            use command = connection.CreateCommand()
+            command.CommandText <-
+                """
+                CREATE TABLE IF NOT EXISTS requests (
+                    id TEXT PRIMARY KEY,
+                    method TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    auth_scheme TEXT NOT NULL,
+                    status TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS response_bodies (
+                    sha256 TEXT PRIMARY KEY,
+                    body TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS responses (
+                    id TEXT PRIMARY KEY,
+                    request_id TEXT NOT NULL,
+                    status_code INTEGER NOT NULL,
+                    duration_ms INTEGER NOT NULL,
+                    size_kb REAL NOT NULL,
+                    summary TEXT NOT NULL,
+                    body_sha256 TEXT NOT NULL,
+                    FOREIGN KEY(request_id) REFERENCES requests(id),
+                    FOREIGN KEY(body_sha256) REFERENCES response_bodies(sha256)
+                );
+                """
+            command.ExecuteNonQuery() |> ignore)
+
+    member _.SeedDemo() : Result<unit, DomainError> =
+        execute "seed SQLite demo data" (fun () ->
+            use connection = new SqliteConnection(connectionString)
+            connection.Open()
+
+            use command = connection.CreateCommand()
+            command.CommandText <-
+                """
+                INSERT OR IGNORE INTO requests(id, method, name, url, auth_scheme, status)
+                VALUES
+                    ('create-token', 'POST', 'Create token', 'https://api.minnal.local/v1/tokens', 'OAuth 2.0 PKCE', 'Ready'),
+                    ('list-workspaces', 'GET', 'List workspaces', 'https://api.minnal.local/v1/workspaces', 'Bearer', 'Cached'),
+                    ('rotate-secret', 'PATCH', 'Rotate secret', 'https://api.minnal.local/v1/secrets/current', 'HMAC', 'Needs review');
+
+                INSERT OR IGNORE INTO response_bodies(sha256, body)
+                VALUES
+                    ('demo-body-sha256', '{"error":"token_expired","retry":"refresh"}');
+
+                INSERT OR IGNORE INTO responses(id, request_id, status_code, duration_ms, size_kb, summary, body_sha256)
+                VALUES
+                    ('create-token-response', 'create-token', 401, 184, 3.8, 'Token expired before replay. Refresh flow is required before retry.', 'demo-body-sha256');
+                """
+            command.ExecuteNonQuery() |> ignore)
+
+    member _.Snapshot() : Result<StorageSnapshot, DomainError> =
+        try
+            use connection = new SqliteConnection(connectionString)
+            connection.Open()
+
+            let scalarInt sql =
+                use command = connection.CreateCommand()
+                command.CommandText <- sql
+                command.ExecuteScalar() :?> int64 |> int
+
+            let requestCount = scalarInt "SELECT COUNT(*) FROM requests;"
+            let responseBodiesStored = scalarInt "SELECT COUNT(*) FROM response_bodies;"
+
+            StorageSnapshot.create databasePath requestCount responseBodiesStored
+        with ex ->
+            Error(StorageFailure("read SQLite snapshot", ex.Message))
+
+// ⚠️ MAUI DI interop port. Correct F# core shape is the pure WorkbenchSnapshot +
+// projection pipeline above; this interface exists so C# host glue can resolve it.
+type IWorkbenchService =
+    abstract member GetView: unit -> WorkbenchView
+
+// ⚠️ MAUI DI interop adapter. Keep side effects here: telemetry, filesystem, SQLite.
+// Domain construction still returns Result and never throws for control flow.
+type WorkbenchService() =
+    let databasePath =
+        Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Minnal",
+            "maui-spike.sqlite")
+
+    let store = SqliteWorkbenchStore(databasePath)
+
+    let blockedView error : WorkbenchView =
+        let snapshot = Projection.errorView error
+        let telemetry: MemoryTelemetryView =
+            match MemoryTelemetry.fromCurrentProcess () with
+            | Ok telemetry -> ViewProjection.memoryTelemetryToView telemetry
+            | Error telemetryError ->
+                {
+                    WorkingSetMb = 0
+                    ManagedHeapMb = 0
+                    WebViewPolicy = telemetryError.Message
+                }
+        let storage: StorageSnapshotView =
+            {
+                DatabasePath = databasePath
+                RequestCount = 0
+                ResponseBodiesStored = 0
+            }
+
+        {
+            Snapshot = snapshot
+            Telemetry = telemetry
+            Storage = storage
+        }
+
+    interface IWorkbenchService with
+        member _.GetView() =
+            ResultSyntax.result {
+                do! store.EnsureCreated()
+                do! store.SeedDemo()
+                let! snapshot = WorkbenchSnapshotFactory.Create()
+                let! telemetry = MemoryTelemetry.fromCurrentProcess()
+                let! storage = store.Snapshot()
+
+                return
+                    ({
+                        Snapshot = Projection.toView snapshot
+                        Telemetry = ViewProjection.memoryTelemetryToView telemetry
+                        Storage = ViewProjection.storageToView storage
+                    } : WorkbenchView)
+            }
+            |> function
+                | Ok view -> view
+                | Error error -> blockedView error

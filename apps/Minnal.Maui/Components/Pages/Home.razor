@@ -1,12 +1,16 @@
 @page "/"
+@inject IWorkbenchService Workbench
 
 @{
-    var snapshot = WorkbenchSnapshotFactory.CreateView();
+    var view = Workbench.GetView();
+    var snapshot = view.Snapshot;
     var active = snapshot.ActiveRequest;
     var response = snapshot.Response;
     var model = snapshot.Model;
     var hook = snapshot.Hook;
     var platform = snapshot.Platform;
+    var telemetry = view.Telemetry;
+    var storage = view.Storage;
 }
 
 <main class="workbench">
@@ -116,6 +120,10 @@
         <span class="ok">Offline</span>
         <span>SQLite: ready</span>
         <span>AI: on-demand</span>
+        <span>Working set: @telemetry.WorkingSetMb MB</span>
+        <span>Managed heap: @telemetry.ManagedHeapMb MB</span>
+        <span>Requests: @storage.RequestCount</span>
+        <span>Bodies: @storage.ResponseBodiesStored</span>
         <span>@platform.RenderPolicy</span>
     </footer>
 </main>
