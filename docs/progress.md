@@ -4,6 +4,95 @@
 
 ---
 
+## Session 5 - 2026-05-02 - Gemma 4 E4B GGUF + AI harness
+
+### What changed
+
+| Item | Status |
+|---|---|
+| Removed older Gemma 3 download path | Done |
+| Downloaded Gemma 4 E4B IT Q4_K_M GGUF | Done |
+| Bundled model under app raw assets | Done |
+| Preferred non-`mmproj` GGUF when scanning model roots | Done |
+| Added test-only `AiModelRoot` smart constructor | Done |
+| Added real AI harness test | Done |
+| Ignored Rust tests for this pass | Done |
+
+### Model
+
+```text
+Repo: ggml-org/gemma-4-E4B-it-GGUF
+File: gemma-4-E4B-it-Q4_K_M.gguf
+Base model: google/gemma-4-E4B-it
+Local path: apps/Minnal.Maui/Resources/Raw/ai/gemma-4-E4B-it-Q4_K_M.gguf
+Local size: 4.97 GB
+```
+
+The GGUF is intentionally ignored by git via `*.gguf`. It is present locally and copied into the app output, but it is not pushed as a repository blob.
+
+### Tests
+
+Command:
+
+```powershell
+dotnet run --project apps\Minnal.AppModel.Tests\Minnal.AppModel.Tests.fsproj --no-restore
+```
+
+Result:
+
+```text
+8 tests run
+8 passed
+0 ignored
+0 failed
+0 errored
+FsCheck property: 100 cases passed
+```
+
+The AI harness loads `gemma-4-E4B-it-Q4_K_M.gguf` and produces inference through `LLamaSharp.Backend.Cpu`.
+
+### MAUI build
+
+Command:
+
+```powershell
+dotnet build apps\Minnal.Maui\Minnal.Maui.csproj -f net10.0-windows10.0.19041.0 --no-restore
+```
+
+Result:
+
+```text
+Build succeeded.
+0 warnings
+0 errors
+```
+
+### Warm memory - Debug, Gemma 4 E4B loaded
+
+Sample after launching the MAUI app and waiting 55 seconds:
+
+```text
+OUTPUT_GGUF_COUNT=1
+HOST_MB=3928.8
+HOST_PLUS_NEW_WEBVIEW2_MB=4211.6
+```
+
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe | 3928.8 |
+| msedgewebview2 renderer/browser | 155.1 |
+| msedgewebview2 GPU/browser support | 65.8 |
+| msedgewebview2 GPU-info | 34.0 |
+| msedgewebview2 crash handler | 18.4 |
+| msedgewebview2 spare renderer | 9.5 |
+| **Total** | **4211.6** |
+
+### Interpretation
+
+Gemma 4 E4B Q4_K_M is viable on this machine using CPU and a 512-token context. The shell plus loaded model sits around 4.2 GB working set in Debug. This fits the local-first direction, but it changes the memory envelope: the previous 700 MB warm target only applies before loading a real model.
+
+---
+
 ## Session 4 — 2026-05-02 — F# service law + bundled GGUF policy
 
 ### What changed

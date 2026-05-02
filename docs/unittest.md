@@ -7,16 +7,17 @@ Branch: `maui-fsharp-spike`
 
 | Area | Result | Notes |
 |---|---:|---|
-| Bundled Gemma/GGUF check | Blocked | No `.gguf` file exists in repo or app output |
-| F# AppModel tests | Passed | 7 Expecto tests, including 100 FsCheck property cases |
+| Bundled Gemma/GGUF check | Passed | `gemma-4-E4B-it-Q4_K_M.gguf` exists locally in bundled app assets |
+| F# AppModel tests | Passed | 8 Expecto tests, including 100 FsCheck property cases |
+| Real AI harness | Passed | Gemma 4 E4B Q4_K_M loaded and produced inference |
 | MAUI Windows build | Passed | 0 warnings, 0 errors |
-| Rust workspace tests | Passed | All crates compile; no Rust tests currently defined |
+| Rust workspace tests | Skipped | Intentionally ignored for this pass |
 | Live REST probe | Passed | `GET https://api.github.com/zen` returned successfully |
 | Markdown consolidation | Done | Markdown files moved under `docs/` |
 
 ## Gemma / GGUF Status
 
-Gemma is not downloaded or bundled.
+Gemma is downloaded and locally bundled in the app asset tree.
 
 Checked:
 
@@ -27,7 +28,8 @@ Get-ChildItem -Path E:\Arun\Workspace\Minnal -Recurse -Filter *.gguf
 Result:
 
 ```text
-No .gguf files found.
+apps\Minnal.Maui\Resources\Raw\ai\gemma-4-E4B-it-Q4_K_M.gguf
+apps\Minnal.Maui\bin\Debug\net10.0-windows10.0.19041.0\win-x64\ai\gemma-4-E4B-it-Q4_K_M.gguf
 ```
 
 Current app policy is bundled model only. The app scans its installed content directory for `*.gguf`; it does not load weights from `%LOCALAPPDATA%`.
@@ -37,6 +39,8 @@ Expected source location before packaging:
 ```text
 apps/Minnal.Maui/Resources/Raw/ai/<model>.gguf
 ```
+
+The GGUF is ignored by git via `*.gguf`, so it is a local app/package asset, not a committed repository blob.
 
 ## F# AppModel Tests
 
@@ -49,8 +53,8 @@ dotnet run --project apps\Minnal.AppModel.Tests\Minnal.AppModel.Tests.fsproj --n
 Result:
 
 ```text
-7 tests run
-7 passed
+8 tests run
+8 passed
 0 ignored
 0 failed
 0 errored
@@ -67,7 +71,20 @@ Coverage added:
 | `WorkbenchSnapshotFactory` | creates GitHub Zen active request |
 | `WorkbenchService` | seeds SQLite-backed request/body counts |
 | `LlamaAiService` | blocks cleanly when no bundled GGUF exists |
+| `LlamaAiService` | loads bundled Gemma 4 E4B and produces inference |
 | `HttpExecutionService` | reports invalid URL as effect error |
+
+AI harness model:
+
+```text
+gemma-4-E4B-it-Q4_K_M.gguf
+Source: ggml-org/gemma-4-E4B-it-GGUF
+Base model: google/gemma-4-E4B-it
+Local size: 4.97 GB
+Backend: LLamaSharp.Backend.Cpu
+Context: 512
+Max output tokens: 64
+```
 
 ## REST API Probe
 
@@ -103,40 +120,41 @@ Build succeeded.
 0 errors
 ```
 
-## Rust Workspace Tests
+## Warm MAUI Memory With Gemma 4 E4B
 
-Command:
+Command shape:
 
 ```powershell
-cargo test --workspace
+Launch apps\Minnal.Maui\bin\Debug\net10.0-windows10.0.19041.0\win-x64\Minnal.Maui.exe,
+wait 55 seconds, then sample host plus newly spawned WebView2 processes.
 ```
 
 Result:
 
 ```text
-Finished test profile successfully.
-All Rust crates compiled.
-0 Rust unit tests are currently defined.
-0 Rust doc tests are currently defined.
+OUTPUT_GGUF_COUNT=1
+HOST_MB=3928.8
+HOST_PLUS_NEW_WEBVIEW2_MB=4211.6
 ```
 
-Crates checked:
+Process rows:
 
-| Crate | Status |
-|---|---|
-| `minnal-ai` | Passed, 0 tests |
-| `minnal-core` | Passed, 0 tests |
-| `minnal-export` | Passed, 0 tests |
-| `minnal-hooks` | Passed, 0 tests |
-| `minnal-store` | Passed, 0 tests |
-| `minnal-ui` | Passed, 0 tests |
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe | 3928.8 |
+| msedgewebview2 renderer/browser | 155.1 |
+| msedgewebview2 GPU/browser support | 65.8 |
+| msedgewebview2 GPU-info | 34.0 |
+| msedgewebview2 crash handler | 18.4 |
+| msedgewebview2 spare renderer | 9.5 |
+| **Total** | **4211.6** |
 
 ## Known Gaps
-
-No bundled GGUF exists yet, so real local inference has not been tested.
 
 No end-to-end MAUI UI automation exists yet. Current verification is service-level tests plus app build.
 
 The live REST probe is a network smoke test, not a deterministic unit test. The deterministic HTTP unit test covers the local error path only.
 
-Rust crates still have no behavior tests.
+Rust was intentionally ignored in this pass.
+
+The GGUF is present locally and copied into app output, but it is not pushed to git because `.gguf` files are ignored. A release packaging step must attach or copy the model artifact.

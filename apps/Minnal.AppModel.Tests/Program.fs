@@ -1,6 +1,7 @@
 module Minnal.AppModel.Tests
 
 open System
+open System.IO
 open Expecto
 open FsCheck
 open Minnal.AppModel
@@ -9,6 +10,20 @@ let private assertOk (result: Result<'a, DomainError>) =
     match result with
     | Ok value -> value
     | Error error -> failtest error.Message
+
+let private tryFindBundledAiRoot () =
+    let rec loop (directory: DirectoryInfo) =
+        let candidate =
+            Path.Combine(directory.FullName, "apps", "Minnal.Maui", "Resources", "Raw", "ai")
+
+        if Directory.Exists candidate then
+            Some candidate
+        elif isNull directory.Parent then
+            None
+        else
+            loop directory.Parent
+
+    loop (DirectoryInfo(AppContext.BaseDirectory))
 
 let domainPrimitiveTests =
     testList
@@ -69,6 +84,31 @@ let aiTests =
                     Expect.stringContains explanation "[AI" "blocked explanation reports AI state"
                 finally
                     (service :> IDisposable).Dispose()
+            }
+
+            testTask "Bundled Gemma 4 E4B loads and produces an explanation" {
+                match tryFindBundledAiRoot () with
+                | None ->
+                    Tests.skiptest "Bundled AI root was not found from test output."
+                | Some root ->
+                    let ggufs = Directory.GetFiles(root, "*.gguf", SearchOption.AllDirectories)
+                    Expect.isNonEmpty ggufs "Gemma 4 E4B GGUF must be bundled for AI harness"
+
+                    let modelRoot = AiModelRoot.create root |> assertOk
+                    let service = new LlamaAiService(modelRoot)
+                    let ai = service :> IAiService
+
+                    try
+                        do! ai.LoadAsync()
+
+                        Expect.isTrue ai.IsReady $"AI did not become ready: {ai.State} {ai.StatusText}"
+                        Expect.stringContains ai.StatusText "gemma-4-E4B" "loaded model name"
+
+                        let! explanation = ai.ExplainAsync("Return only this word: pong")
+
+                        Expect.isNonEmpty explanation "inference output"
+                    finally
+                        (service :> IDisposable).Dispose()
             }
         ]
 

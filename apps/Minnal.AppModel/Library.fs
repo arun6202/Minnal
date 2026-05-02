@@ -748,17 +748,25 @@ type BundledGgufPath = private BundledGgufPath of string
 module private BundledGgufPath =
     let value (BundledGgufPath path) = path
 
-    let findFirst () : Result<BundledGgufPath, DomainError> =
-        let root = AppContext.BaseDirectory
-
+    let findFirstIn root : Result<BundledGgufPath, DomainError> =
         try
             Directory.GetFiles(root, "*.gguf", SearchOption.AllDirectories)
+            |> Array.sortBy (fun path ->
+                let name = Path.GetFileName(path)
+
+                if name.StartsWith("mmproj-", StringComparison.OrdinalIgnoreCase) then
+                    1, name
+                else
+                    0, name)
             |> Array.tryHead
             |> function
                 | Some path -> Ok(BundledGgufPath path)
                 | None -> Error(RuntimeFailure("find bundled GGUF", $"No .gguf file was found under app directory {root}"))
         with ex ->
             Error(RuntimeFailure("find bundled GGUF", ex.Message))
+
+    let findFirst () : Result<BundledGgufPath, DomainError> =
+        findFirstIn AppContext.BaseDirectory
 
 module private HttpResultView =
     let create statusCode body durationMs sizeBytes isError errorMessage : HttpResultView =
@@ -785,9 +793,22 @@ type IAiService =
 type IHttpExecutionService =
     abstract member SendAsync: methodText: string * url: string -> Task<HttpResultView>
 
+type AiModelRoot = private AiModelRoot of string
+
+module AiModelRoot =
+    let bundledAppContent = AiModelRoot AppContext.BaseDirectory
+
+    let create path =
+        if String.IsNullOrWhiteSpace path then
+            Error(EmptyText "AI model root")
+        else
+            Ok(AiModelRoot path)
+
+    let value (AiModelRoot path) = path
+
 // ⚠️ Mutable lifetime adapter: the llama.cpp model handle is stateful, disposable, and
 // expensive. Mutation is confined to this singleton boundary; no domain type depends on it.
-type LlamaAiService() =
+type LlamaAiService(modelRoot: AiModelRoot) =
     let gate = obj()
     let mutable runtimeState = AiOffRuntime
     let mutable statusText = "Bundled model not loaded"
@@ -805,7 +826,7 @@ type LlamaAiService() =
     let loadSync () =
         setState AiLoadingRuntime "Scanning bundled app content for GGUF..."
 
-        match BundledGgufPath.findFirst () with
+        match BundledGgufPath.findFirstIn (AiModelRoot.value modelRoot) with
         | Error error ->
             match NonEmptyText.create "AI blocked reason" error.Message with
             | Ok reason -> setState (AiBlockedRuntime reason) error.Message
@@ -828,6 +849,8 @@ type LlamaAiService() =
                 match NonEmptyText.create "AI load failure" ex.Message with
                 | Ok reason -> setState (AiBlockedRuntime reason) $"Load failed: {ex.Message}"
                 | Error _ -> setState AiOffRuntime "AI load failed"
+
+    new() = new LlamaAiService(AiModelRoot.bundledAppContent)
 
     interface IAiService with
         member _.State =
@@ -855,7 +878,7 @@ type LlamaAiService() =
 
                     let inferenceParams =
                         InferenceParams(
-                            MaxTokens = 256,
+                            MaxTokens = 64,
                             AntiPrompts = [| "\n\nUser:"; "###"; "<|end|>" |])
 
                     let fullPrompt =
@@ -896,7 +919,6 @@ type LlamaAiService() =
 
             loadedWeights
             |> Option.iter (fun model -> model.Dispose())
-
 // ⚠️ Adapter: HttpClient is class/disposable based. Request execution is an effect boundary;
 // domain logic must still describe requests as values before reaching this adapter.
 type HttpExecutionService() =
