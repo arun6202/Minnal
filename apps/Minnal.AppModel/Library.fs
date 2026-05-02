@@ -556,10 +556,10 @@ type WorkbenchSnapshotFactory =
         ResultSyntax.result {
             let! active =
                 RequestDraft.create
-                    POST
-                    "Create token"
-                    "https://api.minnal.local/v1/tokens"
-                    OAuth2Pkce
+                    GET
+                    "GitHub Zen"
+                    "https://api.github.com/zen"
+                    Bearer
                     Ready
 
             let! listWorkspaces =
@@ -763,17 +763,17 @@ type SqliteWorkbenchStore(databasePath: string) =
                 """
                 INSERT OR IGNORE INTO requests(id, method, name, url, auth_scheme, status)
                 VALUES
-                    ('create-token', 'POST', 'Create token', 'https://api.minnal.local/v1/tokens', 'OAuth 2.0 PKCE', 'Ready'),
+                    ('github-zen', 'GET', 'GitHub Zen', 'https://api.github.com/zen', 'Bearer', 'Ready'),
                     ('list-workspaces', 'GET', 'List workspaces', 'https://api.minnal.local/v1/workspaces', 'Bearer', 'Cached'),
                     ('rotate-secret', 'PATCH', 'Rotate secret', 'https://api.minnal.local/v1/secrets/current', 'HMAC', 'Needs review');
 
                 INSERT OR IGNORE INTO response_bodies(sha256, body)
                 VALUES
-                    ('demo-body-sha256', '{"error":"token_expired","retry":"refresh"}');
+                    ('demo-body-sha256', '{"message":"hit Send to fetch a live response"}');
 
                 INSERT OR IGNORE INTO responses(id, request_id, status_code, duration_ms, size_kb, summary, body_sha256)
                 VALUES
-                    ('create-token-response', 'create-token', 401, 184, 3.8, 'Token expired before replay. Refresh flow is required before retry.', 'demo-body-sha256');
+                    ('github-zen-response', 'github-zen', 0, 0, 0.0, 'Hit Send to execute the request.', 'demo-body-sha256');
                 """
             command.ExecuteNonQuery() |> ignore)
 

@@ -1,0 +1,12 @@
+<linker>
+  <assembly fullname="System.Private.CoreLib">
+    <type fullname="System.Collections.Generic.List`1" preserve="all" />
+  </assembly>
+  <assembly fullname="System.Collections">
+    <type fullname="System.Collections.Generic.List`1" preserve="all" />
+  </assembly>
+  <assembly fullname="WinRT.Runtime">
+    <type fullname="WinRT.TypeNameSupport" preserve="all" />
+    <type fullname="WinRT.ProjectionInitializer" preserve="all" />
+  </assembly>
+</linker>

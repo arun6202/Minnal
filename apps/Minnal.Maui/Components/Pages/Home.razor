@@ -1,16 +1,18 @@
 @page "/"
+@using Minnal.Maui.Services
 @inject IWorkbenchService Workbench
+@inject IAiService Ai
+@inject IHttpExecutionService Http
 
 @{
-    var view = Workbench.GetView();
-    var snapshot = view.Snapshot;
+    var snapshot = _view.Snapshot;
     var active = snapshot.ActiveRequest;
     var response = snapshot.Response;
     var model = snapshot.Model;
     var hook = snapshot.Hook;
     var platform = snapshot.Platform;
-    var telemetry = view.Telemetry;
-    var storage = view.Storage;
+    var telemetry = _view.Telemetry;
+    var storage = _view.Storage;
 }
 
 <main class="workbench">
@@ -23,21 +25,21 @@
             <span class="prompt">&gt;</span>
             <span>@snapshot.Intent</span>
         </div>
-        <button class="primary">Run</button>
-        <button class="secondary">Explain</button>
+        <button class="primary" @onclick="OnRunAsync" disabled="@_running">@(_running ? "Running..." : "Run")</button>
+        <button class="secondary" @onclick="OnExplainAsync" disabled="@(_explaining || _liveResponse is null)">@(_explaining ? "Explaining..." : "Explain")</button>
     </header>
 
     <section class="left-rail">
         <div class="rail-title">Requests</div>
-        @foreach (var request in snapshot.Requests)
+        @foreach (var req in snapshot.Requests)
         {
-            <article class="request-item @(request.Name == active.Name ? "active" : null)">
+            <article class="request-item @(req.Name == active.Name ? "active" : null)">
                 <div>
-                    <span class="method">@request.Method</span>
-                    <strong>@request.Name</strong>
+                    <span class="method">@req.Method</span>
+                    <strong>@req.Name</strong>
                 </div>
-                <p>@request.Url</p>
-                <small>@request.Status</small>
+                <p>@req.Url</p>
+                <small>@req.Status</small>
             </article>
         }
 
@@ -45,7 +47,7 @@
             <div class="rail-title">Model</div>
             <strong>@model.Mode</strong>
             <p>@model.Backend</p>
-            <small>@model.Memory</small>
+            <small>AI: @Ai.State — @Ai.StatusText</small>
         </article>
 
         <article class="model-panel compact">
@@ -60,7 +62,7 @@
         <div class="request-line">
             <div class="method-box">@active.Method</div>
             <div class="url-box">@active.Url</div>
-            <button class="primary">Send</button>
+            <button class="primary" @onclick="OnSendAsync" disabled="@_sending">@(_sending ? "Sending..." : "Send")</button>
         </div>
 
         <div class="request-grid">
@@ -76,12 +78,29 @@
         </div>
 
         <article class="response-panel">
-            <div class="response-meta">
-                <strong>@response.StatusCode</strong>
-                <span>@response.DurationMs ms</span>
-                <span>@response.SizeKb.ToString("0.0") KB</span>
-            </div>
-            <p>@response.Summary</p>
+            @if (_liveResponse is not null)
+            {
+                <div class="response-meta">
+                    <strong>@_liveResponse.StatusCode</strong>
+                    <span>@_liveResponse.DurationMs ms</span>
+                    <span>@((_liveResponse.SizeBytes / 1024.0).ToString("0.0")) KB</span>
+                    @if (_liveResponse.IsError) { <span class="warn">@_liveResponse.ErrorMessage</span> }
+                </div>
+                <p>@_liveResponse.Body</p>
+            }
+            else if (_sending)
+            {
+                <p>Sending...</p>
+            }
+            else
+            {
+                <div class="response-meta">
+                    <strong>@response.StatusCode</strong>
+                    <span>@response.DurationMs ms</span>
+                    <span>@response.SizeKb.ToString("0.0") KB</span>
+                </div>
+                <p>@response.Summary</p>
+            }
         </article>
 
         <footer class="promote-strip">
@@ -95,7 +114,18 @@
         <div class="rail-title">Why</div>
         <article class="panel tall">
             <div class="panel-title">Evidence</div>
-            <p>Stored response status, request auth scheme, and token expiry window.</p>
+            @if (!string.IsNullOrEmpty(_aiExplanation))
+            {
+                <p>@_aiExplanation</p>
+            }
+            else if (_explaining)
+            {
+                <p>Explaining...</p>
+            }
+            else
+            {
+                <p>Hit Send then Explain to see AI analysis.</p>
+            }
             <div class="divider"></div>
             <div class="panel-title">Next Action</div>
             <p>Refresh credentials, replay once, keep the failed response attached to history.</p>
@@ -119,7 +149,7 @@
     <footer class="statusbar">
         <span class="ok">Offline</span>
         <span>SQLite: ready</span>
-        <span>AI: on-demand</span>
+        <span class="@(Ai.State == AiState.Ready ? "ok" : "warn")">AI: @Ai.State</span>
         <span class="@(telemetry.ProcessTreeMb > model.ColdTargetMb ? "warn" : "ok")">Tree: @telemetry.ProcessTreeMb MB / @model.ColdTargetMb MB target</span>
         <span>Host: @telemetry.HostProcessMb MB</span>
         <span>WebView2: @telemetry.WebView2TreeMb MB</span>
@@ -128,3 +158,52 @@
         <span>Bodies: @storage.ResponseBodiesStored</span>
     </footer>
 </main>
+
+@code {
+    private Minnal.AppModel.WorkbenchView _view = default!;
+    private HttpResult? _liveResponse;
+    private string _aiExplanation = "";
+    private bool _sending;
+    private bool _explaining;
+    private bool _running;
+
+    protected override void OnInitialized()
+    {
+        _view = Workbench.GetView();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!firstRender) return;
+        _ = Task.Run(async () =>
+        {
+            await Ai.LoadAsync();
+            await InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private async Task OnSendAsync()
+    {
+        _sending = true;
+        _liveResponse = null;
+        var active = _view.Snapshot.ActiveRequest;
+        _liveResponse = await Http.SendAsync(active.Method, active.Url);
+        _sending = false;
+    }
+
+    private async Task OnExplainAsync()
+    {
+        if (_liveResponse is null) return;
+        _explaining = true;
+        _aiExplanation = await Ai.ExplainAsync(_liveResponse.Body);
+        _explaining = false;
+    }
+
+    private async Task OnRunAsync()
+    {
+        _running = true;
+        await OnSendAsync();
+        await OnExplainAsync();
+        _running = false;
+    }
+}
