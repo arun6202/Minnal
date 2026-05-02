@@ -25,6 +25,9 @@ models/
 .vscode/
 .idea/
 
+# Claude Code session data
+.claude/
+
 # Windows
 Thumbs.db
 Desktop.ini
