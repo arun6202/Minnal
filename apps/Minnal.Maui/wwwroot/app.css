@@ -35,6 +35,10 @@ p {
     min-width: 980px;
 }
 
+.workbench.why-expanded {
+    grid-template-columns: 220px minmax(360px, 0.82fr) minmax(520px, 0.9fr);
+}
+
 .topbar {
     align-items: center;
     background: #151b20;
@@ -108,6 +112,24 @@ small,
     grid-template-rows: auto auto auto auto 1fr;
     min-height: 0;
     padding: 14px 12px;
+}
+
+.why-drawer {
+    overflow: hidden;
+}
+
+.drawer-title {
+    align-items: center;
+    display: flex;
+    justify-content: space-between;
+}
+
+.icon-button {
+    background: #263541;
+    color: #dce7e4;
+    font-size: 12px;
+    min-height: 28px;
+    padding: 0 10px;
 }
 
 .request-item,
@@ -223,6 +245,22 @@ small,
     display: grid;
     gap: 10px;
     padding: 14px;
+}
+
+.evidence-panel {
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    overflow: hidden;
+}
+
+.evidence-text {
+    align-self: start;
+    color: #dce7e4;
+    font-size: 14px;
+    line-height: 1.45;
+    min-height: 0;
+    overflow: auto;
+    padding-right: 4px;
+    white-space: pre-wrap;
 }
 
 code {

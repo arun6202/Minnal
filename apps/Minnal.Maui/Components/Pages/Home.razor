@@ -14,7 +14,7 @@
     var storage = _view.Storage;
 }
 
-<main class="workbench">
+<main class="workbench @(_whyExpanded ? "why-expanded" : null)">
     <header class="topbar">
         <div class="brand">
             <strong>Minnal</strong>
@@ -116,20 +116,25 @@
     </section>
 
     <aside class="why-drawer">
-        <div class="rail-title">Why</div>
-        <article class="panel tall">
+        <div class="drawer-title">
+            <span class="rail-title">Why</span>
+            <button class="icon-button" title="@(_whyExpanded ? "Dock" : "Expand")" @onclick="ToggleWhyDrawer">
+                @(_whyExpanded ? "Dock" : "Expand")
+            </button>
+        </div>
+        <article class="panel tall evidence-panel">
             <div class="panel-title">Evidence</div>
             @if (!string.IsNullOrEmpty(_aiExplanation))
             {
-                <p>@_aiExplanation</p>
+                <p class="evidence-text">@_aiExplanation</p>
             }
             else if (_explaining)
             {
-                <p>Explaining...</p>
+                <p class="evidence-text">Explaining...</p>
             }
             else
             {
-                <p>Hit Send then Explain to see AI analysis.</p>
+                <p class="evidence-text">Hit Send then Explain to see AI analysis.</p>
             }
             <div class="divider"></div>
             <div class="panel-title">Next Action</div>
@@ -173,6 +178,7 @@
     private bool _sending;
     private bool _explaining;
     private bool _running;
+    private bool _whyExpanded;
 
     protected override void OnInitialized()
     {
@@ -214,5 +220,10 @@
         await OnSendAsync();
         await OnExplainAsync();
         _running = false;
+    }
+
+    private void ToggleWhyDrawer()
+    {
+        _whyExpanded = !_whyExpanded;
     }
 }
