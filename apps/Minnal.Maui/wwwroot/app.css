@@ -104,8 +104,7 @@ small,
     background: #c9782b;
 }
 
-.left-rail,
-.why-drawer {
+.left-rail {
     background: #12181e;
     display: grid;
     gap: 10px;
@@ -115,7 +114,14 @@ small,
 }
 
 .why-drawer {
+    background: #12181e;
+    border-left: 1px solid #27323b;
+    display: grid;
+    gap: 10px;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
     overflow: hidden;
+    padding: 14px 12px;
 }
 
 .drawer-title {
@@ -247,19 +253,68 @@ small,
     padding: 14px;
 }
 
-.evidence-panel {
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+.accordion-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
     overflow: hidden;
 }
 
+.accordion-section {
+    background: #121920;
+    border: 1px solid #27323b;
+    border-radius: 8px;
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.accordion-section[open] {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.accordion-section.evidence-section {
+    flex: 1 1 260px;
+}
+
+.accordion-section summary {
+    color: #9dafaa;
+    cursor: pointer;
+    font-size: 12px;
+    list-style: none;
+    padding: 10px 12px;
+}
+
+.accordion-section summary::-webkit-details-marker {
+    display: none;
+}
+
+.accordion-section[open] summary {
+    border-bottom: 1px solid #27323b;
+}
+
+.accordion-body {
+    display: grid;
+    gap: 8px;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px;
+}
+
+.evidence-body {
+    align-content: start;
+}
+
+.drawer-text,
 .evidence-text {
     align-self: start;
     color: #dce7e4;
     font-size: 14px;
     line-height: 1.45;
     min-height: 0;
-    overflow: auto;
-    padding-right: 4px;
+    overflow-wrap: anywhere;
     white-space: pre-wrap;
 }
 
@@ -287,10 +342,6 @@ code {
 .promote-strip span {
     color: #dce7e4;
     margin-right: auto;
-}
-
-.why-drawer {
-    border-left: 1px solid #27323b;
 }
 
 .tall {

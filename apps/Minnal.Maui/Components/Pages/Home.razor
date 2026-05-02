@@ -122,38 +122,50 @@
                 @(_whyExpanded ? "Dock" : "Expand")
             </button>
         </div>
-        <article class="panel tall evidence-panel">
-            <div class="panel-title">Evidence</div>
-            @if (!string.IsNullOrEmpty(_aiExplanation))
-            {
-                <p class="evidence-text">@_aiExplanation</p>
-            }
-            else if (_explaining)
-            {
-                <p class="evidence-text">Explaining...</p>
-            }
-            else
-            {
-                <p class="evidence-text">Hit Send then Explain to see AI analysis.</p>
-            }
-            <div class="divider"></div>
-            <div class="panel-title">Next Action</div>
-            <p>Refresh credentials, replay once, keep the failed response attached to history.</p>
-        </article>
+        <div class="accordion-stack">
+            <details class="accordion-section evidence-section" open>
+                <summary>Evidence</summary>
+                <div class="accordion-body evidence-body">
+                    @if (!string.IsNullOrEmpty(_aiExplanation))
+                    {
+                        <p class="evidence-text">@_aiExplanation</p>
+                    }
+                    else if (_explaining)
+                    {
+                        <p class="evidence-text">Explaining...</p>
+                    }
+                    else
+                    {
+                        <p class="evidence-text">Hit Send then Explain to see AI analysis.</p>
+                    }
+                </div>
+            </details>
 
-        <article class="model-panel">
-            <div class="rail-title">Hook Review</div>
-            <strong>@hook.Phase: @hook.Name</strong>
-            <p>@hook.Capability</p>
-            <small>@hook.Verdict</small>
-        </article>
+            <details class="accordion-section" open>
+                <summary>Next Action</summary>
+                <div class="accordion-body">
+                    <p class="drawer-text">Refresh credentials, replay once, keep the failed response attached to history.</p>
+                </div>
+            </details>
 
-        <article class="model-panel compact">
-            <div class="rail-title">Memory Policy</div>
-            <strong>&lt; @model.ColdTargetMb MB cold</strong>
-            <p>&lt; @model.WarmTargetMb MB warm, excluding model mmap</p>
-            <small>@model.UnloadPolicy</small>
-        </article>
+            <details class="accordion-section">
+                <summary>Hook Review</summary>
+                <div class="accordion-body">
+                    <strong>@hook.Phase: @hook.Name</strong>
+                    <p class="drawer-text">@hook.Capability</p>
+                    <small>@hook.Verdict</small>
+                </div>
+            </details>
+
+            <details class="accordion-section">
+                <summary>Memory Policy</summary>
+                <div class="accordion-body">
+                    <strong>&lt; @model.ColdTargetMb MB cold</strong>
+                    <p class="drawer-text">&lt; @model.WarmTargetMb MB warm, excluding model mmap</p>
+                    <small>@model.UnloadPolicy</small>
+                </div>
+            </details>
+        </div>
     </aside>
 
     <footer class="statusbar">
