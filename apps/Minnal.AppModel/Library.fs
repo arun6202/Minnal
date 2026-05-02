@@ -143,6 +143,18 @@ module RequestHeader =
     let name header = HttpHeaderName.value header.Name
     let value header = HttpHeaderValue.value header.Value
 
+type RequestBody = private RequestBody of NonEmptyText
+
+module RequestBody =
+    let create value =
+        if String.IsNullOrWhiteSpace value then
+            Ok None
+        else
+            NonEmptyText.create "HTTP request body" value
+            |> Result.map (RequestBody >> Some)
+
+    let value (RequestBody body) = NonEmptyText.value body
+
 type HttpMethod =
     | GET
     | POST
@@ -863,7 +875,7 @@ type IAiService =
 // ⚠️ Interop port: Razor needs a service-shaped port. Domain callers should prefer
 // pure request descriptions plus an executor boundary returning Result.
 type IHttpExecutionService =
-    abstract member SendAsync: methodText: string * url: string * headers: HttpHeaderView array -> Task<HttpResultView>
+    abstract member SendAsync: methodText: string * url: string * headers: HttpHeaderView array * bodyText: string -> Task<HttpResultView>
 
 type AiModelRoot = private AiModelRoot of string
 
@@ -1029,11 +1041,22 @@ type HttpExecutionService() =
 
         if request.Headers.TryAddWithoutValidation(name, value) then
             Ok()
+        elif isNull request.Content then
+            Error(RuntimeFailure("add HTTP header", $"{name} requires request content, but the body is empty."))
+        elif name.Equals("Content-Type", StringComparison.OrdinalIgnoreCase) then
+            request.Content.Headers.Remove name |> ignore
+
+            if request.Content.Headers.TryAddWithoutValidation(name, value) then
+                Ok()
+            else
+                Error(RuntimeFailure("add HTTP header", $"{name} is not valid for content headers."))
+        elif request.Content.Headers.TryAddWithoutValidation(name, value) then
+            Ok()
         else
             Error(RuntimeFailure("add HTTP header", $"{name} is not valid for request headers in the current request shape."))
 
     interface IHttpExecutionService with
-        member _.SendAsync(methodText: string, url: string, headers: HttpHeaderView array) =
+        member _.SendAsync(methodText: string, url: string, headers: HttpHeaderView array, bodyText: string) =
             task {
                 let sw = Stopwatch.StartNew()
 
@@ -1041,19 +1064,7 @@ type HttpExecutionService() =
                     use request = new HttpRequestMessage(HttpMethod(methodText), url)
                     request.Headers.UserAgent.ParseAdd("Minnal/0.1 (spike)")
 
-                    let headerResult =
-                        match parseHeaders headers with
-                        | Error error -> Error error
-                        | Ok parsedHeaders ->
-                            parsedHeaders
-                            |> List.fold
-                                (fun state header ->
-                                    match state with
-                                    | Error error -> Error error
-                                    | Ok () -> addHeader request header)
-                                (Ok())
-
-                    match headerResult with
+                    match RequestBody.create bodyText with
                     | Error error ->
                         sw.Stop()
 
@@ -1065,19 +1076,48 @@ type HttpExecutionService() =
                                 0L
                                 true
                                 error.Message
-                    | Ok _ ->
-                        use! response = client.SendAsync(request)
-                        let! responseBody = response.Content.ReadAsStringAsync()
-                        sw.Stop()
+                    | Ok body ->
+                        body
+                        |> Option.iter (fun requestBody ->
+                            request.Content <- new StringContent(RequestBody.value requestBody, Encoding.UTF8, "application/json"))
 
-                        return
-                            HttpResultView.create
-                                (int response.StatusCode)
-                                responseBody
-                                sw.ElapsedMilliseconds
-                                (int64 (Encoding.UTF8.GetByteCount responseBody))
-                                (not response.IsSuccessStatusCode)
-                                ""
+                        let headerResult =
+                            match parseHeaders headers with
+                            | Error error -> Error error
+                            | Ok parsedHeaders ->
+                                parsedHeaders
+                                |> List.fold
+                                    (fun state header ->
+                                        match state with
+                                        | Error error -> Error error
+                                        | Ok () -> addHeader request header)
+                                    (Ok())
+
+                        match headerResult with
+                        | Error error ->
+                            sw.Stop()
+
+                            return
+                                HttpResultView.create
+                                    0
+                                    ""
+                                    sw.ElapsedMilliseconds
+                                    0L
+                                    true
+                                    error.Message
+                        | Ok _ ->
+                            use! response = client.SendAsync(request)
+                            let! responseBody = response.Content.ReadAsStringAsync()
+                            sw.Stop()
+
+                            return
+                                HttpResultView.create
+                                    (int response.StatusCode)
+                                    responseBody
+                                    sw.ElapsedMilliseconds
+                                    (int64 (Encoding.UTF8.GetByteCount responseBody))
+                                    (not response.IsSuccessStatusCode)
+                                    ""
                 with ex ->
                     sw.Stop()
 

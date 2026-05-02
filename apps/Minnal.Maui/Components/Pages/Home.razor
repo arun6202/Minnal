@@ -99,9 +99,15 @@
                     }
                 </div>
             </article>
-            <article class="panel">
-                <div class="panel-title">Body</div>
-                <code>&#123; "scope": "workspace:write" &#125;</code>
+            <article class="panel body-panel">
+                <div class="panel-heading">
+                    <div class="panel-title">Body</div>
+                    <div class="body-tools">
+                        <button class="preset-button" @onclick="UseJsonBody" disabled="@(_sending || _running)">JSON</button>
+                        <button class="icon-button" @onclick="ClearBody" disabled="@(_sending || _running)">Clear</button>
+                    </div>
+                </div>
+                <textarea class="body-editor" @bind="_bodyText" @bind:event="oninput" placeholder="Request body" spellcheck="false" disabled="@(_sending || _running)"></textarea>
             </article>
         </div>
 
@@ -210,6 +216,7 @@
     private string _aiExplanation = "";
     private string _methodText = "GET";
     private string _urlText = "";
+    private string _bodyText = "";
     private bool _sending;
     private bool _explaining;
     private bool _running;
@@ -237,7 +244,7 @@
         _sending = true;
         _liveResponse = null;
         _aiExplanation = "";
-        _liveResponse = await Http.SendAsync(_methodText, _urlText.Trim(), ActiveHeaders());
+        _liveResponse = await Http.SendAsync(_methodText, _urlText.Trim(), ActiveHeaders(), _bodyText);
         _sending = false;
     }
 
@@ -290,6 +297,16 @@
     private void AddJsonHeader()
     {
         _headers.Add(new HttpHeaderView { Enabled = true, Name = "Accept", Value = "application/json" });
+    }
+
+    private void UseJsonBody()
+    {
+        _bodyText = "{\n    \"name\": \"Minnal\"\n}";
+    }
+
+    private void ClearBody()
+    {
+        _bodyText = "";
     }
 
     private static void ClearHeader(HttpHeaderView header)

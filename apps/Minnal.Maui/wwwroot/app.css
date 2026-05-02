@@ -319,6 +319,41 @@ small,
     opacity: 0.75;
 }
 
+.body-panel {
+    grid-template-rows: auto minmax(0, 1fr);
+}
+
+.body-tools {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+}
+
+.body-editor {
+    background: #0c1116;
+    border: 1px solid #2c3640;
+    border-radius: 6px;
+    color: #f3f7f5;
+    font-family: Consolas, "Cascadia Code", monospace;
+    font-size: 13px;
+    line-height: 1.45;
+    min-height: 0;
+    outline: 0;
+    overflow: auto;
+    padding: 10px;
+    resize: none;
+    white-space: pre;
+}
+
+.body-editor:focus {
+    border-color: #71e6c2;
+}
+
+.body-editor:disabled {
+    color: #71817c;
+    opacity: 0.75;
+}
+
 .accordion-stack {
     display: flex;
     flex-direction: column;

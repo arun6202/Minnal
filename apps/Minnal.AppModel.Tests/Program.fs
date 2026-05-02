@@ -121,7 +121,7 @@ let httpTests =
                 let http = service :> IHttpExecutionService
 
                 try
-                    let! result = http.SendAsync("GET", "http://[::1", Array.empty)
+                    let! result = http.SendAsync("GET", "http://[::1", Array.empty, "")
 
                     Expect.isTrue result.IsError "invalid URL is an error result"
                     Expect.equal result.StatusCode 0 "no HTTP status exists for construction failure"
@@ -144,7 +144,7 @@ let httpTests =
                             }
                         |]
 
-                    let! result = http.SendAsync("GET", "https://example.com", headers)
+                    let! result = http.SendAsync("GET", "https://example.com", headers, "")
 
                     Expect.isTrue result.IsError "invalid header name is projected as an error"
                     Expect.equal result.StatusCode 0 "request must not execute with invalid headers"
