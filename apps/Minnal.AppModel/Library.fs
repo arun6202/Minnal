@@ -15,6 +15,8 @@ type DomainError =
     | NegativeInteger of Field: string * Value: int
     | NonPositiveDecimal of Field: string * Value: decimal
     | InvalidHttpStatusCode of Value: int
+    | InvalidHttpHeaderName of Value: string
+    | InvalidHttpHeaderValue of Name: string
     | StorageFailure of Operation: string * Reason: string
     | RuntimeFailure of Operation: string * Reason: string
 
@@ -24,6 +26,8 @@ type DomainError =
         | NegativeInteger (field, value) -> $"{field} must be zero or greater; got {value}."
         | NonPositiveDecimal (field, value) -> $"{field} must be greater than zero; got {value}."
         | InvalidHttpStatusCode value -> $"HTTP status code must be between 100 and 599; got {value}."
+        | InvalidHttpHeaderName value -> $"HTTP header name is invalid: {value}"
+        | InvalidHttpHeaderValue name -> $"HTTP header value for {name} contains invalid control characters."
         | StorageFailure (operation, reason) -> $"{operation} failed: {reason}"
         | RuntimeFailure (operation, reason) -> $"{operation} failed: {reason}"
 
@@ -78,6 +82,66 @@ module HttpStatusCode =
             Ok(HttpStatusCode value)
 
     let value (HttpStatusCode statusCode) = statusCode
+
+type HttpHeaderName = private HttpHeaderName of NonEmptyText
+
+module HttpHeaderName =
+    let private forbidden =
+        [| '('; ')'; '<'; '>'; '@'; ','; ';'; ':'; '\\'; '"'; '/'; '['; ']'; '?'; '='; '{'; '}'; ' '; '\t'; '\r'; '\n' |]
+
+    let create value =
+        match NonEmptyText.create "HTTP header name" value with
+        | Error error -> Error error
+        | Ok text ->
+            let raw = NonEmptyText.value text
+
+            if raw.IndexOfAny forbidden >= 0 then
+                Error(InvalidHttpHeaderName raw)
+            else
+                Ok(HttpHeaderName text)
+
+    let value (HttpHeaderName name) = NonEmptyText.value name
+
+type HttpHeaderValue = private HttpHeaderValue of NonEmptyText
+
+module HttpHeaderValue =
+    let create name value =
+        match NonEmptyText.create $"HTTP header value for {name}" value with
+        | Error error -> Error error
+        | Ok text ->
+            let raw = NonEmptyText.value text
+
+            if raw.Contains '\r' || raw.Contains '\n' then
+                Error(InvalidHttpHeaderValue name)
+            else
+                Ok(HttpHeaderValue text)
+
+    let value (HttpHeaderValue value) = NonEmptyText.value value
+
+type RequestHeader =
+    private
+        {
+            Name: HttpHeaderName
+            Value: HttpHeaderValue
+        }
+
+module RequestHeader =
+    open ResultSyntax
+
+    let create name value =
+        result {
+            let! parsedName = HttpHeaderName.create name
+            let! parsedValue = HttpHeaderValue.create (HttpHeaderName.value parsedName) value
+
+            return
+                {
+                    Name = parsedName
+                    Value = parsedValue
+                }
+        }
+
+    let name header = HttpHeaderName.value header.Name
+    let value header = HttpHeaderValue.value header.Value
 
 type HttpMethod =
     | GET
@@ -361,6 +425,14 @@ type WorkbenchView =
         Snapshot: WorkbenchSnapshotView
         Telemetry: MemoryTelemetryView
         Storage: StorageSnapshotView
+    }
+
+[<CLIMutable>]
+type HttpHeaderView =
+    {
+        Enabled: bool
+        Name: string
+        Value: string
     }
 
 [<CLIMutable>]
@@ -791,7 +863,7 @@ type IAiService =
 // ⚠️ Interop port: Razor needs a service-shaped port. Domain callers should prefer
 // pure request descriptions plus an executor boundary returning Result.
 type IHttpExecutionService =
-    abstract member SendAsync: methodText: string * url: string -> Task<HttpResultView>
+    abstract member SendAsync: methodText: string * url: string * headers: HttpHeaderView array -> Task<HttpResultView>
 
 type AiModelRoot = private AiModelRoot of string
 
@@ -927,8 +999,41 @@ type HttpExecutionService() =
             new HttpClientHandler(AllowAutoRedirect = true),
             Timeout = TimeSpan.FromSeconds(30.0))
 
+    let parseHeaders (headers: HttpHeaderView array) =
+        let source =
+            if isNull headers then
+                Array.empty
+            else
+                headers
+
+        let folder state (header: HttpHeaderView) =
+            match state with
+            | Error error -> Error error
+            | Ok parsed ->
+                if isNull (box header) || not header.Enabled then
+                    Ok parsed
+                elif String.IsNullOrWhiteSpace header.Name && String.IsNullOrWhiteSpace header.Value then
+                    Ok parsed
+                else
+                    match RequestHeader.create header.Name header.Value with
+                    | Ok requestHeader -> Ok(requestHeader :: parsed)
+                    | Error error -> Error error
+
+        source
+        |> Array.fold folder (Ok [])
+        |> Result.map List.rev
+
+    let addHeader (request: HttpRequestMessage) header =
+        let name = RequestHeader.name header
+        let value = RequestHeader.value header
+
+        if request.Headers.TryAddWithoutValidation(name, value) then
+            Ok()
+        else
+            Error(RuntimeFailure("add HTTP header", $"{name} is not valid for request headers in the current request shape."))
+
     interface IHttpExecutionService with
-        member _.SendAsync(methodText: string, url: string) =
+        member _.SendAsync(methodText: string, url: string, headers: HttpHeaderView array) =
             task {
                 let sw = Stopwatch.StartNew()
 
@@ -936,18 +1041,43 @@ type HttpExecutionService() =
                     use request = new HttpRequestMessage(HttpMethod(methodText), url)
                     request.Headers.UserAgent.ParseAdd("Minnal/0.1 (spike)")
 
-                    use! response = client.SendAsync(request)
-                    let! responseBody = response.Content.ReadAsStringAsync()
-                    sw.Stop()
+                    let headerResult =
+                        match parseHeaders headers with
+                        | Error error -> Error error
+                        | Ok parsedHeaders ->
+                            parsedHeaders
+                            |> List.fold
+                                (fun state header ->
+                                    match state with
+                                    | Error error -> Error error
+                                    | Ok () -> addHeader request header)
+                                (Ok())
 
-                    return
-                        HttpResultView.create
-                            (int response.StatusCode)
-                            responseBody
-                            sw.ElapsedMilliseconds
-                            (int64 (Encoding.UTF8.GetByteCount responseBody))
-                            (not response.IsSuccessStatusCode)
-                            ""
+                    match headerResult with
+                    | Error error ->
+                        sw.Stop()
+
+                        return
+                            HttpResultView.create
+                                0
+                                ""
+                                sw.ElapsedMilliseconds
+                                0L
+                                true
+                                error.Message
+                    | Ok _ ->
+                        use! response = client.SendAsync(request)
+                        let! responseBody = response.Content.ReadAsStringAsync()
+                        sw.Stop()
+
+                        return
+                            HttpResultView.create
+                                (int response.StatusCode)
+                                responseBody
+                                sw.ElapsedMilliseconds
+                                (int64 (Encoding.UTF8.GetByteCount responseBody))
+                                (not response.IsSuccessStatusCode)
+                                ""
                 with ex ->
                     sw.Stop()
 

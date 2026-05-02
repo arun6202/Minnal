@@ -121,11 +121,34 @@ let httpTests =
                 let http = service :> IHttpExecutionService
 
                 try
-                    let! result = http.SendAsync("GET", "http://[::1")
+                    let! result = http.SendAsync("GET", "http://[::1", Array.empty)
 
                     Expect.isTrue result.IsError "invalid URL is an error result"
                     Expect.equal result.StatusCode 0 "no HTTP status exists for construction failure"
                     Expect.isNonEmpty result.ErrorMessage "error message is projected"
+                finally
+                    (service :> IDisposable).Dispose()
+            }
+
+            testTask "HttpExecutionService rejects illegal header names before execution" {
+                let service = new HttpExecutionService()
+                let http = service :> IHttpExecutionService
+
+                try
+                    let headers =
+                        [|
+                            {
+                                Enabled = true
+                                Name = "bad header"
+                                Value = "value"
+                            }
+                        |]
+
+                    let! result = http.SendAsync("GET", "https://example.com", headers)
+
+                    Expect.isTrue result.IsError "invalid header name is projected as an error"
+                    Expect.equal result.StatusCode 0 "request must not execute with invalid headers"
+                    Expect.stringContains result.ErrorMessage "HTTP header name is invalid" "error names the header failure"
                 finally
                     (service :> IDisposable).Dispose()
             }

@@ -72,9 +72,32 @@
 
         <div class="request-grid">
             <article class="panel">
-                <div class="panel-title">Headers</div>
-                <p>Authorization: @active.Auth</p>
-                <p>Content-Type: application/json</p>
+                <div class="panel-heading">
+                    <div class="panel-title">Headers</div>
+                    <button class="icon-button" @onclick="AddHeader" disabled="@(_sending || _running)">Add</button>
+                </div>
+                <div class="header-presets">
+                    <button class="preset-button" @onclick="AddApiKeyHeader" disabled="@(_sending || _running)">API Key</button>
+                    <button class="preset-button" @onclick="AddBearerHeader" disabled="@(_sending || _running)">Bearer</button>
+                    <button class="preset-button" @onclick="AddJsonHeader" disabled="@(_sending || _running)">JSON</button>
+                </div>
+                <div class="header-list">
+                    @foreach (var header in _headers)
+                    {
+                        <div class="header-row">
+                            <input class="header-toggle" type="checkbox" @bind="header.Enabled" disabled="@(_sending || _running)" />
+                            <select class="header-name" @bind="header.Name" disabled="@(_sending || _running || !header.Enabled)">
+                                <option value="x-api-key">x-api-key</option>
+                                <option value="Authorization">Authorization</option>
+                                <option value="Accept">Accept</option>
+                                <option value="Content-Type">Content-Type</option>
+                                <option value="X-Request-Id">X-Request-Id</option>
+                            </select>
+                            <input class="header-value" type="@HeaderValueInputType(header)" @bind="header.Value" @bind:event="oninput" placeholder="@HeaderValueHint(header)" disabled="@(_sending || _running || !header.Enabled)" />
+                            <button class="icon-button" @onclick="() => ClearHeader(header)" disabled="@(_sending || _running)">Clear</button>
+                        </div>
+                    }
+                </div>
             </article>
             <article class="panel">
                 <div class="panel-title">Body</div>
@@ -214,7 +237,7 @@
         _sending = true;
         _liveResponse = null;
         _aiExplanation = "";
-        _liveResponse = await Http.SendAsync(_methodText, _urlText.Trim());
+        _liveResponse = await Http.SendAsync(_methodText, _urlText.Trim(), ActiveHeaders());
         _sending = false;
     }
 
@@ -238,4 +261,50 @@
     {
         _whyExpanded = !_whyExpanded;
     }
+
+    private readonly List<HttpHeaderView> _headers = new()
+    {
+        new HttpHeaderView { Enabled = true, Name = "x-api-key", Value = "" }
+    };
+
+    private HttpHeaderView[] ActiveHeaders() =>
+        _headers
+            .Where(header => header.Enabled && !string.IsNullOrWhiteSpace(header.Name) && !string.IsNullOrWhiteSpace(header.Value))
+            .ToArray();
+
+    private void AddHeader()
+    {
+        _headers.Add(new HttpHeaderView { Enabled = true, Name = "x-api-key", Value = "" });
+    }
+
+    private void AddApiKeyHeader()
+    {
+        _headers.Add(new HttpHeaderView { Enabled = true, Name = "x-api-key", Value = "" });
+    }
+
+    private void AddBearerHeader()
+    {
+        _headers.Add(new HttpHeaderView { Enabled = true, Name = "Authorization", Value = "Bearer " });
+    }
+
+    private void AddJsonHeader()
+    {
+        _headers.Add(new HttpHeaderView { Enabled = true, Name = "Accept", Value = "application/json" });
+    }
+
+    private static void ClearHeader(HttpHeaderView header)
+    {
+        header.Value = "";
+    }
+
+    private static string HeaderValueInputType(HttpHeaderView header) =>
+        header.Name.Equals("x-api-key", StringComparison.OrdinalIgnoreCase) ||
+        header.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)
+            ? "password"
+            : "text";
+
+    private static string HeaderValueHint(HttpHeaderView header) =>
+        header.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)
+            ? "Bearer token"
+            : "value";
 }
