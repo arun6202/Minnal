@@ -2,6 +2,14 @@
 /target/
 /spikes/
 
+# .NET build output and local CLI state
+bin/
+obj/
+**/bin/
+**/obj/
+.dotnet-cli-home/
+.vs/
+
 # Local data
 *.sqlite
 *.sqlite-wal

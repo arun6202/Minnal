@@ -1,0 +1,267 @@
+html,
+body {
+    background: #0e1318;
+    color: #f3f7f5;
+    font-family: "Segoe UI", Arial, sans-serif;
+    margin: 0;
+    overflow: hidden;
+}
+
+button {
+    border: 0;
+    border-radius: 6px;
+    color: #fff;
+    cursor: pointer;
+    font: inherit;
+    min-height: 36px;
+    padding: 0 16px;
+}
+
+p {
+    margin: 0;
+}
+
+.workbench {
+    display: grid;
+    grid-template-columns: 240px minmax(460px, 1fr) 330px;
+    grid-template-rows: 58px minmax(0, 1fr) 34px;
+    height: 100vh;
+    min-width: 980px;
+}
+
+.topbar {
+    align-items: center;
+    background: #151b20;
+    border-bottom: 1px solid #27323b;
+    display: grid;
+    gap: 12px;
+    grid-column: 1 / 4;
+    grid-template-columns: 180px minmax(0, 1fr) 110px 110px;
+    padding: 10px 16px;
+}
+
+.brand {
+    display: grid;
+    gap: 2px;
+}
+
+.brand strong {
+    font-size: 22px;
+}
+
+.brand span,
+.rail-title,
+.panel-title,
+small,
+.statusbar {
+    color: #9dafaa;
+    font-size: 12px;
+}
+
+.intent,
+.url-box {
+    align-items: center;
+    background: #0c1116;
+    border: 1px solid #2c3640;
+    border-radius: 6px;
+    display: flex;
+    min-width: 0;
+    overflow: hidden;
+    padding: 0 12px;
+    white-space: nowrap;
+}
+
+.prompt,
+.method,
+.method-box,
+.ok {
+    color: #71e6c2;
+}
+
+.primary {
+    background: #1e6f5c;
+}
+
+.secondary {
+    background: #30445c;
+}
+
+.promote {
+    background: #c9782b;
+}
+
+.left-rail,
+.why-drawer {
+    background: #12181e;
+    display: grid;
+    gap: 10px;
+    grid-template-rows: auto auto auto auto 1fr;
+    min-height: 0;
+    padding: 14px 12px;
+}
+
+.request-item,
+.panel,
+.model-panel,
+.response-panel,
+.promote-strip {
+    background: #121920;
+    border: 1px solid #27323b;
+    border-radius: 8px;
+}
+
+.request-item {
+    display: grid;
+    gap: 5px;
+    padding: 10px;
+}
+
+.request-item.active {
+    background: #192229;
+    border-color: #38534d;
+}
+
+.request-item div,
+.response-meta,
+.promote-strip,
+.statusbar {
+    align-items: center;
+    display: flex;
+    gap: 10px;
+}
+
+.request-item p,
+.model-panel p,
+.panel p {
+    color: #dce7e4;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.method {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.model-panel {
+    align-self: end;
+    display: grid;
+    gap: 6px;
+    padding: 12px;
+}
+
+.model-panel.compact {
+    align-self: auto;
+}
+
+.model-panel p {
+    color: #e4b363;
+    white-space: normal;
+}
+
+.request-surface {
+    background: #0e1318;
+    display: grid;
+    gap: 12px;
+    grid-template-rows: 42px 150px minmax(180px, 1fr) 56px;
+    min-height: 0;
+    padding: 14px;
+}
+
+.request-line {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 86px minmax(0, 1fr) 110px;
+}
+
+.method-box {
+    align-items: center;
+    background: #14231f;
+    border: 1px solid #38534d;
+    border-radius: 6px;
+    display: flex;
+    font-weight: 800;
+    justify-content: center;
+}
+
+.request-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: 1fr 1fr;
+}
+
+.panel,
+.response-panel {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+}
+
+code {
+    color: #f3f7f5;
+    font-family: Consolas, "Cascadia Code", monospace;
+    font-size: 13px;
+}
+
+.response-meta strong {
+    color: #ff6b6b;
+    font-size: 24px;
+}
+
+.response-panel p {
+    align-self: center;
+    font-size: 20px;
+}
+
+.promote-strip {
+    justify-content: flex-end;
+    padding: 10px 12px;
+}
+
+.promote-strip span {
+    color: #dce7e4;
+    margin-right: auto;
+}
+
+.why-drawer {
+    border-left: 1px solid #27323b;
+}
+
+.tall {
+    align-content: start;
+    min-height: 0;
+}
+
+.divider {
+    background: #27323b;
+    height: 1px;
+}
+
+.statusbar {
+    background: #151b20;
+    border-top: 1px solid #27323b;
+    grid-column: 1 / 4;
+    overflow: hidden;
+    padding: 0 14px;
+    white-space: nowrap;
+}
+
+#blazor-error-ui {
+    background: #3a1f1f;
+    bottom: 0;
+    color: #fff;
+    display: none;
+    left: 0;
+    padding: 0.7rem 1rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+}

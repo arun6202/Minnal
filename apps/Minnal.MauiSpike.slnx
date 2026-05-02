@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Minnal.AppModel/Minnal.AppModel.fsproj" />
+  <Project Path="Minnal.Maui/Minnal.Maui.csproj" />
+</Solution>

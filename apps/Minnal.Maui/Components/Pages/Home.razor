@@ -1,0 +1,121 @@
+@page "/"
+
+@{
+    var snapshot = WorkbenchSnapshotFactory.Create();
+    var active = snapshot.ActiveRequest;
+    var response = snapshot.Response;
+    var model = snapshot.Model;
+    var hook = snapshot.Hook;
+    var platform = snapshot.Platform;
+}
+
+<main class="workbench">
+    <header class="topbar">
+        <div class="brand">
+            <strong>Minnal</strong>
+            <span>Never Settle</span>
+        </div>
+        <div class="intent">
+            <span class="prompt">&gt;</span>
+            <span>@snapshot.Intent</span>
+        </div>
+        <button class="primary">Run</button>
+        <button class="secondary">Explain</button>
+    </header>
+
+    <section class="left-rail">
+        <div class="rail-title">Requests</div>
+        @foreach (var request in snapshot.Requests)
+        {
+            <article class="request-item @(request.Name == active.Name ? "active" : null)">
+                <div>
+                    <span class="method">@request.Method</span>
+                    <strong>@request.Name</strong>
+                </div>
+                <p>@request.Url</p>
+                <small>@request.Status</small>
+            </article>
+        }
+
+        <article class="model-panel">
+            <div class="rail-title">Model</div>
+            <strong>@model.Mode</strong>
+            <p>@model.Backend</p>
+            <small>@model.Memory</small>
+        </article>
+
+        <article class="model-panel compact">
+            <div class="rail-title">Platform</div>
+            <strong>@platform.PrimaryTarget</strong>
+            <p>@platform.UiHost</p>
+            <small>@platform.FutureTargets</small>
+        </article>
+    </section>
+
+    <section class="request-surface">
+        <div class="request-line">
+            <div class="method-box">@active.Method</div>
+            <div class="url-box">@active.Url</div>
+            <button class="primary">Send</button>
+        </div>
+
+        <div class="request-grid">
+            <article class="panel">
+                <div class="panel-title">Headers</div>
+                <p>Authorization: @active.Auth</p>
+                <p>Content-Type: application/json</p>
+            </article>
+            <article class="panel">
+                <div class="panel-title">Body</div>
+                <code>&#123; "scope": "workspace:write" &#125;</code>
+            </article>
+        </div>
+
+        <article class="response-panel">
+            <div class="response-meta">
+                <strong>@response.StatusCode</strong>
+                <span>@response.DurationMs ms</span>
+                <span>@response.SizeKb.ToString("0.0") KB</span>
+            </div>
+            <p>@response.Summary</p>
+        </article>
+
+        <footer class="promote-strip">
+            <span>Zero persistence until Promote</span>
+            <button class="secondary">Save</button>
+            <button class="promote">Promote</button>
+        </footer>
+    </section>
+
+    <aside class="why-drawer">
+        <div class="rail-title">Why</div>
+        <article class="panel tall">
+            <div class="panel-title">Evidence</div>
+            <p>Stored response status, request auth scheme, and token expiry window.</p>
+            <div class="divider"></div>
+            <div class="panel-title">Next Action</div>
+            <p>Refresh credentials, replay once, keep the failed response attached to history.</p>
+        </article>
+
+        <article class="model-panel">
+            <div class="rail-title">Hook Review</div>
+            <strong>@hook.Phase: @hook.Name</strong>
+            <p>@hook.Capability</p>
+            <small>@hook.Verdict</small>
+        </article>
+
+        <article class="model-panel compact">
+            <div class="rail-title">Memory Policy</div>
+            <strong>&lt; @model.ColdTargetMb MB cold</strong>
+            <p>&lt; @model.WarmTargetMb MB warm, excluding model mmap</p>
+            <small>@model.UnloadPolicy</small>
+        </article>
+    </aside>
+
+    <footer class="statusbar">
+        <span class="ok">Offline</span>
+        <span>SQLite: ready</span>
+        <span>AI: on-demand</span>
+        <span>@platform.RenderPolicy</span>
+    </footer>
+</main>
