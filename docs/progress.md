@@ -1,336 +1,402 @@
-# Progress Report - MAUI/F# Spike
+# progress.md — Minnal maui-fsharp-spike
+# Live measurements. Updated at end of each session.
+# Branch: maui-fsharp-spike | Date: 2026-05-02
 
-Date: 2026-05-02  
-Branch: `maui-fsharp-spike`  
-Current commit before this report: `157ce8e spike: add maui blazor fsharp shell`
+---
 
-## Current Status
+## Session 4 — 2026-05-02 — F# service law + bundled GGUF policy
 
-The MAUI/F# cross-platform spike is alive and pushed.
+### What changed
 
-The branch contains:
+| Item | File(s) | Status |
+|---|---|---|
+| Removed C# AI service | Services/AiService.cs | Done |
+| Removed C# HTTP service | Services/HttpExecutionService.cs | Done |
+| F# AI service port/adapter | Minnal.AppModel/Library.fs | Done |
+| F# HTTP execution port/adapter | Minnal.AppModel/Library.fs | Done |
+| LLamaSharp ownership moved to F# project | Minnal.AppModel.fsproj | Done |
+| MAUI host remains DI glue only | MauiProgram.cs | Done |
+| Model lookup changed from AppData to bundled app content | Library.fs | Done |
+| SQLite spike DB moved from AppData to app-local `state/` | Library.fs | Done |
+| Bundled model asset folder | Resources/Raw/ai/ | Done |
 
-- `apps/Minnal.Maui`: .NET MAUI Blazor Hybrid shell.
-- `apps/Minnal.AppModel`: F# app-state/model layer.
-- `apps/Minnal.MauiSpike.slnx`: solution entry point.
-- `apps/README.md`: short architecture and memory-policy note.
+### F# law status
 
-The Windows MAUI target builds:
+Durable service logic now lives in F#:
 
-```powershell
-dotnet build apps\Minnal.Maui\Minnal.Maui.csproj -f net10.0-windows10.0.19041.0
-```
+- `IAiService`
+- `LlamaAiService`
+- `IHttpExecutionService`
+- `HttpExecutionService`
+- `HttpResultView`
+- bundled GGUF path discovery
 
-Build result: success.
+C# is back to thin MAUI glue: app startup, DI registration, and Razor rendering.
 
-The app has also been launched from the built Windows output. It stayed running long enough to sample memory and initialise SQLite.
+Known weakness: service-shaped interfaces and mutable model lifetime are still interop adapters. They are marked with warning comments in F# because MAUI DI, `HttpClient`, SQLite, and LLamaSharp are class/disposable APIs. The domain state remains DU/smart-constructor based.
 
-Cold shell sample after roughly 8 seconds:
+### Bundled GGUF policy
 
-```text
-Minnal.Maui host process:      160.2 MB
-Minnal process tree total:     503.2 MB
-SQLite database created at:    %LOCALAPPDATA%\Minnal\maui-spike.sqlite
-SQLite database size:          28,672 bytes
-```
-
-This means the MAUI Blazor shell is viable, but not cheap. The process-tree sample includes WebView2 children and is already above the original 350 MB cold target. The right next action is measurement and reduction, not pretending this is lightweight.
-
-## What Went Well
-
-The cross-platform path is practical.
-
-The installed SDK already has .NET 10 and MAUI workloads, including `maui-windows`, Android, iOS, and Mac Catalyst manifests. That means the machine can scaffold and build a MAUI app without a long setup detour.
-
-MAUI Blazor Hybrid fits Minnal better than plain MAUI XAML.
-
-Minnal needs a dense API workbench UI: request lists, response panels, drawers, command surfaces, evidence blocks, hook review, and future graph/search views. HTML/CSS inside `BlazorWebView` is a better fit for that density than pure XAML. It also keeps the door open for sharing UI components with a future web companion.
-
-F# works cleanly as the app model layer.
-
-The first F# project compiles and is referenced by the MAUI app. Current F# types model:
-
-- request drafts
-- response snapshots
-- model lifecycle state
-- hook review state
-- platform policy
-- workbench snapshot factory
-
-After the F# law update, the F# model now uses:
-
-- single-case DUs for constrained values
-- DUs for HTTP method, auth scheme, AI lifecycle, backend state, hook phase, and platform host
-- smart constructors returning `Result<_, DomainError>`
-- separate UI projection records for Razor interop
-- an injected workbench service for MAUI
-- SQLite boundary adapter returning `Result`
-- memory telemetry boundary adapter
-
-This is the right separation: MAUI hosts and renders; F# owns product state and later domain logic.
-
-The first screen is not a landing page.
-
-The MAUI branch opens directly into a Minnal-like workbench:
-
-- intent bar
-- request rail
-- request/response surface
-- Why drawer
-- hook review panel
-- model status panel
-- cross-platform/platform policy panel
-- memory policy panel
-
-This follows the product direction better than template screens or marketing pages.
-
-Memory discipline is already represented in app state.
-
-The branch records these rules in code and docs:
-
-- AI is on-demand by default.
-- No model load during app startup.
-- One active `BlazorWebView`.
-- Large response bodies and indexes stay out of UI state.
-- Cold shell target: under 350 MB.
-- Warm UI target, excluding model mmap: under 700 MB.
-- Unload model/context on idle, memory pressure, or workspace switch.
-
-That matters because local AI will dominate memory. We should not confuse MAUI overhead with model overhead, but we also should not let MAUI grow unchecked.
-
-## What Did Not Go Well
-
-F# MAUI templates are not available out of the box.
-
-The installed MAUI templates are C# only. A pure F# MAUI app would require custom project setup and likely more friction around XAML/source generation. The pragmatic compromise is:
-
-- C# for thin MAUI host.
-- Razor/CSS for UI.
-- F# for state, domain logic, storage rules, import/export logic, and AI orchestration.
-
-This is a good compromise, not a failure.
-
-`dotnet` needed CLI-home handling in the sandbox.
-
-The default sandbox user profile could not write .NET first-run sentinel files. The branch uses a local ignored `.dotnet-cli-home/` during commands. This is not product code, but it is useful for Codex sessions.
-
-NuGet access required escalation.
-
-The first restore failed under sandbox network restrictions. Running the build with approval allowed restore/build to complete.
-
-MAUI is heavier than Windows-only stacks.
-
-Compared with WPF/WinForms/Rust-native shells, MAUI Blazor Hybrid has more baseline memory cost. That cost buys cross-platform reach. Since cross-platform is a requirement, the right response is measurement and lifecycle discipline, not dropping MAUI prematurely.
-
-The first actual cold process-tree sample is around 503 MB.
-
-That is higher than the aspirational 350 MB cold-shell target. This is the clearest weakness in the MAUI Blazor path. It does not kill the path, because local AI model memory will still dominate, but it means the memory gate must be treated as a product requirement, not a nice-to-have.
-
-The current UI is partially static.
-
-The first screen is a high-fidelity shell backed by F# state. It now initialises SQLite, stores demo request metadata, stores a demo response body out of UI state, and displays memory/storage telemetry. It does not yet execute real HTTP requests, load models, or run hooks.
-
-That is intentional. The branch is proving the shell direction and architecture shape first.
-
-## Architecture Direction
-
-Recommended shape:
+The app no longer reads model weights from:
 
 ```text
-Minnal.Maui
-  Thin MAUI host.
-  One BlazorWebView.
-  Platform lifecycle hooks.
-  Native file pickers, notifications, secure storage adapters.
-
-Minnal.Web
-  Razor components / CSS workbench UI.
-  Eventually split from Minnal.Maui if reuse becomes valuable.
-
-Minnal.AppModel
-  F# domain state.
-  Request/session models.
-  AI lifecycle policy.
-  Memory policy.
-  Platform capability model.
-
-Minnal.Store
-  SQLite persistence.
-  Response-body deduplication.
-  Vector index integration.
-
-Minnal.AI
-  Model lifecycle.
-  Inference backend abstraction.
-  On-demand/warm/unload behavior.
-
-Minnal.Core
-  HTTP execution, auth, environments, import models.
+%LOCALAPPDATA%\Minnal\models\
 ```
 
-For now, only `Minnal.Maui` and `Minnal.AppModel` exist in this branch.
+Instead, it scans the installed app content directory for `*.gguf`.
 
-## MAUI Memory Reality
-
-Expected rough memory shape:
+Spike source location:
 
 ```text
-MAUI shell without model:             moderate
-MAUI BlazorWebView active:            higher
-Local AI model loaded:                dominant memory cost
-Model context / KV cache:             can be very large
-Embedding/index caches:               must be bounded
-Large response bodies in UI memory:   must be avoided
+apps/Minnal.Maui/Resources/Raw/ai/
 ```
 
-The important rule: do not load the model at startup.
+Package rule: put the GGUF under `Resources/Raw/ai/` before packaging. The model is then carried with the app content. No model download or AppData model folder is required.
 
-Default lifecycle should be:
+Current measurement has no GGUF bundled:
 
 ```text
-App opens
-  -> no model loaded
-User asks Explain/Search/Generate
-  -> load model or connect sidecar
-  -> run task
-  -> keep warm briefly
-Idle or pressure
-  -> release context/model
+BUNDLED_GGUF_COUNT=0
 ```
 
-This keeps MAUI viable even if it is not the lightest shell.
+### SQLite policy
 
-## What Arun Should Know
+The spike DB moved from `%LOCALAPPDATA%` to:
 
-MAUI Blazor Hybrid is the right cross-platform bet if cross-platform is real.
+```text
+<app-base>/state/maui-spike.sqlite
+```
 
-If Minnal were Windows-only, WPF + WebView2 would be leaner. Since cross-platform is now a must, MAUI's extra baseline is acceptable if we hold strict memory gates.
+This satisfies the current "all app stuff lives with the app" spike rule.
 
-Blazor Hybrid means the UI is web-rendered, but not Electron.
+Known weakness: installed/mobile app bundles are commonly read-only. Before store/mobile packaging, writable state needs a platform-specific decision. For now, the unpackaged Windows spike can write beside the app output.
 
-It uses platform WebView controls inside a native MAUI app. On Windows that is WebView2. On other platforms it uses the platform web view. This is heavier than native controls but lighter and more integrated than shipping Chromium through Electron.
+### Memory — Debug, no bundled model
 
-F# should own the product brain.
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe (host) | 161.3 |
+| msedgewebview2 — renderer/browser | 154.6 |
+| msedgewebview2 — GPU/browser support | 63.5 |
+| msedgewebview2 — GPU-info | 34.1 |
+| msedgewebview2 — crash handler | 18.4 |
+| msedgewebview2 — spare renderer | 9.6 |
+| **TOTAL HOST + NEW WEBVIEW2** | **441.5 MB** |
 
-Do not force F# into the MAUI host layer. Let C# do thin host glue where the ecosystem expects it. Put durable logic in F# where it pays off.
+### Memory — Release, no trim, no bundled model
 
-Avoid multiple WebViews.
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe (host) | 152.5 |
+| msedgewebview2 — renderer/browser | 154.6 |
+| msedgewebview2 — GPU/browser support | 63.5 |
+| msedgewebview2 — GPU-info | 34.1 |
+| msedgewebview2 — crash handler | 18.4 |
+| msedgewebview2 — spare renderer | 9.5 |
+| **TOTAL HOST + NEW WEBVIEW2** | **432.7 MB** |
 
-One hidden extra WebView can erase a lot of memory discipline. The app should keep one primary `BlazorWebView` and route panels inside it.
+### Current AI state
 
-Measure before arguing.
+AI is wired but blocked until a GGUF is bundled into app content.
 
-The next meaningful decision is not theoretical. The branch should run, capture cold working set, then capture warm working set after the first AI-adjacent flow without actually loading a huge model.
+```text
+Off -> Loading -> Ready   (GGUF found under installed app content)
+Off -> Loading -> Blocked (no bundled GGUF found)
+```
 
-## F# Engineering Law
+No GGUF has been committed. A real model file must be supplied as a release artifact or intentionally added to the package input.
 
-F# is the primary product language for the model, domain, planning, storage orchestration, AI lifecycle, and cross-platform policy layers. C# is allowed only as thin MAUI/platform glue where the ecosystem forces it.
+---
 
-Treat F# as a proof-carrying language:
+## Session 3 — 2026-05-02 — WebView2 memory flags + trim investigation
 
-- Every type is a proof.
-- Every function is a theorem.
-- Illegal states must be unrepresentable at compile time.
-- If a C# pattern appears in F# code, mark it with `⚠️` in review and replace it with the F# idiom.
+### What changed
 
-Core rules:
+| Item | File(s) | Status |
+|---|---|---|
+| WebView2 browser flags | MauiProgram.cs | Done |
+| `--in-process-gpu` | MauiProgram.cs | Done |
+| Disable Translate / AutofillAssistant / MediaRouter | MauiProgram.cs | Done |
+| FSharp.Core trim root | Minnal.Maui.csproj | Added, insufficient |
+| Explicit linker roots for List<T> / WinRT startup | TrimmerRoots.xml | Added, insufficient |
+| Debug build | dotnet build | Passed |
+| Release no-trim publish | dotnet publish | Passed |
+| Release trimmed publish | dotnet publish | Publishes, crashes at startup |
 
-- Parse, do not validate.
-- Prefer discriminated unions over classes.
-- Use `Result<'T, 'Error>` over exception-based domain control flow.
-- Use `Option<'T>` over `null`.
-- Immutability is the default.
-- Mutation requires a written justification and a narrow scope.
-- Prefer composition, pipelines, and functions over inheritance.
+### WebView2 flags applied
 
-Type discipline:
+```csharp
+WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS =
+  --in-process-gpu --disable-features=Translate,AutofillAssistant,MediaRouter
+```
 
-- Use single-case discriminated unions for domain primitives such as non-empty strings, positive integers, model identifiers, route names, and request identifiers.
-- Use smart constructors that return `Result`, never raw unchecked domain values.
-- Use phantom types when compile-time constraints matter.
-- Do not pass meaningful values as primitive `string`, `int`, or `Guid` once they enter domain code.
+The flag is set before MAUI creates the `BlazorWebView`, scoped to Windows only.
 
-Effects and architecture:
+### Memory — Debug, cold, no model loaded, WebView2 flags enabled
 
-- Keep the planner/DAG layer pure.
-- Separate descriptions of work from execution of work.
-- Use railway-oriented programming for domain error flows.
-- Use computation expressions for domain-specific effects where they simplify composition.
-- Use writer-style telemetry accumulation in pure logic; do not log from pure functions.
-- Model streaming and pagination with cursor algebra, not ad hoc nullable tokens.
+Measurement taken from the app host plus newly spawned `msedgewebview2` processes after 18 seconds.
 
-Testing:
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe (host) | 159.2 |
+| msedgewebview2 — renderer/browser | 154.5 |
+| msedgewebview2 — GPU/browser support | 63.5 |
+| msedgewebview2 — GPU-info | 33.9 |
+| msedgewebview2 — crash handler | 18.3 |
+| msedgewebview2 — spare renderer | 9.3 |
+| **TOTAL HOST + NEW WEBVIEW2** | **438.7 MB** |
 
-- Prefer FsCheck properties before unit examples.
-- Use Expecto as the F# test runner.
-- Name tests as properties, not procedures.
-- A test should state the theorem it proves.
+Compared to Session 2 debug baseline (487.4 MB): **−48.7 MB**.
 
-F# stack direction:
+### Memory — Release, no trim, no model loaded, WebView2 flags enabled
 
-- .NET 8 or newer, with F# 8+ semantics.
-- FsCheck + Expecto for tests.
-- SQLite first for Minnal local state; add provider-specific libraries only behind typed ports.
-- Any future ETL-style integrations should follow the same typed-boundary discipline.
+| Process | MB |
+|---|---:|
+| Minnal.Maui.exe (host) | 155.1 |
+| msedgewebview2 — renderer/browser | 160.3 |
+| msedgewebview2 — GPU/browser support | 64.0 |
+| msedgewebview2 — GPU-info | 35.9 |
+| msedgewebview2 — crash handler | 18.3 |
+| msedgewebview2 — spare renderer | 9.3 |
+| **TOTAL HOST + NEW WEBVIEW2** | **443.0 MB** |
 
-Patterns to reject in F#:
+Release without trimming is stable, but it is not materially lower than Debug after WebView2 flags.
 
-- Mutable state without a written reason.
-- Exception-based control flow.
-- Stringly typed APIs.
-- OOP inheritance hierarchies.
-- Service-locator patterns.
-- Null-tolerant APIs in domain code.
-- C#-style DTO mutation as the core model.
+### Trim blocker
 
-Known tradeoff:
+`dotnet publish -c Release -p:PublishTrimmed=true` completes, but the published executable crashes at startup:
 
-This style is slower to scaffold than C#-shaped F#, but it will make Minnal safer. The app is going to manage auth, hooks, model state, persistence, and local execution. Primitive obsession and nullable state will become product bugs quickly.
+```text
+System.TypeInitializationException: WinRT.TypeNameSupport
+System.TypeLoadException: Could not load type
+'System.Collections.Generic.List`1' from assembly 'System.Collections'
+```
+
+Tried:
+
+- `TrimmerRootAssembly Include="FSharp.Core"`
+- `TrimmerRootAssembly Include="System.Collections"`
+- `TrimmerRootAssembly Include="System.Collections.Concurrent"`
+- `TrimmerRootAssembly Include="System.Collections.NonGeneric"`
+- `TrimmerRootAssembly Include="WinRT.Runtime"`
+- explicit `TrimmerRoots.xml` for `List<T>`, `WinRT.TypeNameSupport`, and `WinRT.ProjectionInitializer`
+- `TrimMode=partial`
+
+Result: still crashes with the same WinRT projection startup error.
+
+Current position: **do not use trimmed Release for Windows MAUI yet**. Use Debug or normal Release for the spike. Treat MAUI/WinRT trimming as a separate packaging investigation.
+
+---
+
+## Session 2 — 2026-05-02 — AI wiring + HTTP execution
+
+### What we built
+
+| Item | File(s) | Status |
+|---|---|---|
+| LLamaSharp 0.27.0 + Backend.Cpu | Minnal.AppModel.fsproj | Done |
+| AiService (graceful no-model blocked state) | Minnal.AppModel/Library.fs | Done |
+| HttpExecutionService (real HttpClient) | Minnal.AppModel/Library.fs | Done |
+| DI registration of both services | MauiProgram.cs | Done |
+| Home.razor — interactive buttons wired | Components/Pages/Home.razor | Done |
+| Active request → GET https://api.github.com/zen | Library.fs + SQLite seed | Done |
+| Build: 0 errors, 0 warnings | Debug build | Done |
+| Debug tree (cold, no model) | Process tree | 487.4 MB |
+
+### Home.razor interactivity added
+
+| Button | Action |
+|---|---|
+| Send | HttpExecutionService.SendAsync → live response panel |
+| Explain | LlamaAiService.ExplainAsync → Why drawer |
+| Run | Send + Explain chained |
+
+### AI state machine
+
+```
+Off → Loading → Ready   (GGUF found under installed app content)
+Off → Loading → Blocked (no GGUF found)
+```
+
+Status text and state shown in left-rail Model panel and status bar.
+AI loads in background on first render (OnAfterRender, fire-and-forget Task.Run).
+
+### Memory — Debug, cold, no model loaded
+
+| Process | MB |
+|---|---|
+| Minnal.Maui.exe (host) | 159.2 |
+| msedgewebview2 — renderer | 120.3 |
+| msedgewebview2 — browser | 83.1 |
+| msedgewebview2 — GPU | 63.5 |
+| msedgewebview2 — GPU-info | 33.7 |
+| msedgewebview2 — crash handler | 18.4 |
+| msedgewebview2 — spare renderer | 9.2 |
+| **TOTAL TREE** | **487.4 MB** |
+
+Compared to Session 1 debug baseline (495.5 MB): **−8.1 MB**.
+LLamaSharp DLLs are loaded but idle (no model); overhead negligible.
+
+---
+
+## Session 1 — 2026-05-02 — Baseline measurements + icon
+
+### Memory — Cold Start, No Model, No Data
+
+All measurements taken via BFS process-tree walk from the MAUI host PID.
+WebView2 child processes attributed to the app only (parent-PID chain, not all msedgewebview2 on system).
+
+### Debug build (`dotnet run`)
+
+| Process | MB |
+|---|---|
+| Minnal.Maui.exe (host) | 161.9 |
+| msedgewebview2 — renderer | 125.2 |
+| msedgewebview2 — browser | 83.1 |
+| msedgewebview2 — GPU | 62.0 |
+| msedgewebview2 — GPU-info | 35.7 |
+| msedgewebview2 — crash handler | 18.4 |
+| msedgewebview2 — spare renderer | 9.2 |
+| **TOTAL TREE** | **495.5 MB** |
+
+Target: 350 MB cold. **Over by 145 MB (+42%).**
+
+### Release + PublishTrimmed (`dotnet publish -c Release -p:PublishTrimmed=true`)
+
+| Process | MB |
+|---|---|
+| Minnal.Maui.exe (host) | 129.8 |
+| msedgewebview2 — renderer | 127.4 |
+| msedgewebview2 — browser | 81.0 |
+| msedgewebview2 — GPU | 53.0 |
+| msedgewebview2 — GPU-info | 36.4 |
+| msedgewebview2 — crash handler | 18.4 |
+| msedgewebview2 — spare renderer | 9.3 |
+| **TOTAL TREE** | **455.1 MB** |
+
+Target: 350 MB cold. **Over by 105 MB (+30%).**
+
+### Debug → Release delta
+
+| Component | Debug | Release | Saved |
+|---|---|---|---|
+| Host process | 161.9 MB | 129.8 MB | **−32.1 MB** |
+| WebView2 tree (5 procs) | 333.6 MB | 325.5 MB | **−8.1 MB** |
+| Total | 495.5 MB | 455.1 MB | **−40.4 MB** |
+
+Trim helps the host significantly (−32 MB). WebView2 is unaffected by trim — it is a native Chromium process.
+
+### Observation: PublishTrimmed startup regression
+
+The Release + trimmed binary exhibited a slow Blazor initialisation ("Loading..." persisted past 15s).
+Probable cause: IL2040 warnings from FSharp.Core — the trimmer removes metadata that FSharp.Core's
+reflection-based startup path expects. Fix before next measurement:
+
+```xml
+<TrimmerRootDescriptor Include="TrimmerRoots.xml" />
+```
+
+Or suppress trimming on FSharp.Core:
+
+```xml
+<TrimmerRootAssembly Include="FSharp.Core" />
+```
+
+### Icon
+
+Lightning bolt (`#FF6B1A` on `#151b20`) applied to:
+- `Resources/AppIcon/appicon.svg` (full icon + background)
+- `Resources/AppIcon/appiconfg.svg` (foreground layer for adaptive icons)
+- `Resources/Splash/splash.svg` (splash screen)
+- `Minnal.Maui.csproj` — adaptive icon `Color` updated from `#512BD4` → `#151b20`
+
+---
+
+## Memory Reduction Roadmap
+
+| Lever | Est. saving | Status |
+|---|---|---|
+| Release + PublishTrimmed | −32 MB host | Done — measure confirmed |
+| `--in-process-gpu` WebView2 flag | −48.7 MB measured debug | Done |
+| `--disable-features=Translate,AutofillAssistant,MediaRouter` | included above | Done |
+| Fix FSharp.Core trim annotations | 0 MB (correctness, not size) | Blocked — WinRT trim crash remains |
+| NativeAOT | −20 to −40 MB host | v1.1 |
+
+**Measured floor with WebView2 flags:** ~439 MB debug, ~443 MB normal Release.
+The 350 MB target requires NativeAOT or a structural change (e.g. WPF host instead of MAUI).
+
+---
+
+## UI — Feature State (Debug build, 2026-05-02, Session 2)
+
+| Surface | Status | Notes |
+|---|---|---|
+| Top intent bar | Rendered | Static text; intent input not wired yet |
+| Left rail | Rendered | 3 requests from SQLite; AI state shown live |
+| Centre request workbench | Rendered | Send wired → real HTTP; live response shown |
+| Right Why drawer | Rendered | Shows AI explanation after Explain click |
+| Bottom status strip | Rendered | Tree/Host/WebView2/Heap live; AI state live |
+| AI loading (LLamaSharp) | Wired, Blocked | No bundled GGUF under app content |
+| Real HTTP execution | Wired | GET api.github.com/zen fires from Send |
+| Playground (zero-persist) | Not started | Phase 4 M7 |
+| Semantic canvas | Not started | Phase 4 M3 |
+| AI explain (gemma) | Wired, blocked | Needs GGUF model to activate |
+
+---
+
+## AI Blocker — No Bundled GGUF Model
+
+Current product law: model weights are bundled with the app package, not read from AppData.
+
+To unblock AI:
+1. Download a GGUF model (e.g. gemma-3-1b-it-q4_k_m.gguf or phi-3-mini-4k-instruct-q4.gguf)
+2. Place it under: `apps/Minnal.Maui/Resources/Raw/ai/`
+3. Rebuild/package Minnal — AI state will transition Off → Loading → Ready
+
+Recommended for spike (fits in 4 GB RAM): **gemma-3-1b-it-q4_k_m.gguf** (~800 MB)
+
+---
 
 ## Way Forward
 
-1. Run the MAUI app locally on Windows.
-   - Confirm the workbench renders correctly.
-   - Check layout at 1366x768 and a wide desktop viewport.
+### Immediate (next session)
 
-2. Add a memory telemetry strip.
-   - Show process working set.
-   - Show managed heap.
-   - Show WebView/model state.
+1. **Bundle GGUF model** — unlock Explain button end-to-end
+   - Download: `winget install -e --id HuggingFace.HuggingFaceCLI` then `huggingface-cli download google/gemma-3-1b-it-gguf`
+   - Put the `.gguf` under `apps/Minnal.Maui/Resources/Raw/ai/`
 
-3. Add a real app-state service in F#.
-   - Done for the spike: Razor now consumes an injected `IWorkbenchService`.
-   - Keep UI state small and immutable where practical.
+2. **Test Send + Explain live** — GET api.github.com/zen → AI explains the zen quote
+   - Measure process tree with model loaded (warm baseline)
+   - Record in progress.md: warm tree MB
 
-4. Add platform capability detection.
-   - OS/runtime.
-   - WebView availability.
-   - memory floor.
-   - local model availability.
+3. **Investigate WebView2 process model further**
+   - `--in-process-gpu` helped but did not remove all GPU/browser support cost
+   - Next measurement should compare UI correctness and process tree with/without each flag
 
-5. Add SQLite next, before AI.
-   - Done for the spike: `Microsoft.Data.Sqlite` restores/builds and emits `e_sqlite3.dll` in the Windows output.
-   - Demo request metadata is stored.
-   - Demo response body is stored in `response_bodies`.
-   - Next: replace demo seeding with real repository functions.
+4. **Trimmed Release investigation**
+   - Current trimmed Release crashes in WinRT projection startup
+   - Keep normal Release as the runnable optimized build until this is isolated
 
-6. Add AI lifecycle as a stub first.
-   - Done in the F# model: `AiOff`, `AiLoading`, `AiReadyWarm`, `AiBusy`, `AiUnloading`, `AiBlocked`.
-   - Next: wire buttons to lifecycle transitions without loading a model.
+### Medium term
 
-7. Decide whether to split `Minnal.Web`.
-   - Keep Razor components inside `Minnal.Maui` for now.
-   - Split only when reuse or build boundaries justify it.
+5. **Intent bar wired** — input `<input>` fires AI search over request list
+6. **Request selection** — clicking left-rail items loads that request into workbench
+7. **Postman collection import** — Phase 1 M2 (import *.json, seed SQLite)
+8. **Auth token storage** — Windows DPAPI / Credential Manager for Bearer tokens
 
-8. Add CI for the MAUI branch.
-   - Windows build first.
-   - Android/Mac/iOS later, because those require runner/tooling decisions.
+### v1 gap check
 
-## Immediate Next Command
+| v1 invariant | Status |
+|---|---|
+| Import Postman / Swagger | Not started |
+| Execute any REST request | Partially done (GET, no auth) |
+| gemma-4-e4b explains response | Wired, blocked on GGUF |
+| WASM auth pre-hook | Not started |
+| Search 300 requests by intent | Not started |
+| All offline | Architecture ready |
+| No Electron, no cloud call | Confirmed |
 
-```powershell
-$env:DOTNET_CLI_HOME="$PWD\.dotnet-cli-home"
-dotnet build apps\Minnal.Maui\Minnal.Maui.csproj -f net10.0-windows10.0.19041.0
-```
+---
 
-Then run the app from Visual Studio or with the appropriate MAUI Windows launch command and capture baseline memory.
+*Update this file after every measurement session.*
+*Never Settle.*
