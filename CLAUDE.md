@@ -38,6 +38,51 @@ ETL mental model: Minnal collections are typed DAGs, not folders
 
 ---
 
+## F# Standing Law (Non-Negotiable)
+
+When working on the MAUI/F# branch or any future F# code, treat F# as the primary product language for domain/state/planning logic. C# is thin host glue only.
+
+```
+F# is not nicer C#.
+Every type is a proof.
+Every function is a theorem.
+Illegal states must be unrepresentable.
+Parse, do not validate.
+Discriminated unions over classes.
+Result<'T,'Error> over exceptions in domain logic.
+Option<'T> over null.
+Immutability by default.
+Composition and pipelines over inheritance.
+FsCheck properties before unit examples.
+Expecto for F# test execution.
+```
+
+Review gate for F#:
+
+```
+⚠️ C# pattern in F# output: flag and replace with the F# idiom.
+⚠️ Mutable state without written justification.
+⚠️ Exception-based control flow.
+⚠️ Stringly typed API.
+⚠️ OOP inheritance hierarchy.
+⚠️ Null-tolerant domain API.
+⚠️ Primitive obsession after parsing/boundary code.
+```
+
+Preferred F# shapes:
+
+```
+Single-case DUs for domain primitives.
+Smart constructors returning Result.
+Phantom types for compile-time constraints.
+Pure planner/DAG description separated from execution.
+Writer-style telemetry accumulation in pure logic.
+Cursor algebra for streaming/pagination.
+Module signatures where encapsulation matters.
+```
+
+---
+
 ## Review Gate — Fail PRs on Any of These
 
 ```

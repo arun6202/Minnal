@@ -1,7 +1,7 @@
 @page "/"
 
 @{
-    var snapshot = WorkbenchSnapshotFactory.Create();
+    var snapshot = WorkbenchSnapshotFactory.CreateView();
     var active = snapshot.ActiveRequest;
     var response = snapshot.Response;
     var model = snapshot.Model;
