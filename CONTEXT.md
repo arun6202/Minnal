@@ -4,9 +4,9 @@
 
 ---
 
-## Project State: PHASE 0 COMPLETE - PHASE 0.5 READY
-## Sprint: 0 - Foundation
-## Date: 2026-05-01
+## Project State: PHASE 0 COMPLETE - PHASE 0.5 PARTIAL
+## Sprint: 0.5 - Spike Week
+## Date: 2026-05-02
 
 ---
 
@@ -14,10 +14,10 @@
 
 See Minnal.md and plan.md for full detail. Summary:
 
-- Language: Rust (windows-rs, WinUI 3)
+- Language: Rust (WinUI 3 chrome + WebView2 content for UI)
 - License: Apache 2.0 - all deps must comply
 - AI Model: gemma-4-e4b 14B (Apache 2.0, not bundled)
-- AI Backend: llama.cpp FFI via llama-cpp-2 + DirectML where available
+- AI Backend: llama.cpp FFI; `llama-cpp-2` DirectML path blocked pending custom build decision
 - Hook Runtime: Wasmtime (Apache 2.0, Cranelift JIT)
 - Storage: SQLite + sqlx + sqlite-vec, with hnsw_rs fallback if Windows spike fails
 - Machine Floor: 16GB RAM minimum - hard enforcement
@@ -35,11 +35,11 @@ See Minnal.md and plan.md for full detail. Summary:
 ```
 [x] Cargo workspace initialised in GitHub repo? - Phase 0 scaffold in progress
 [x] Repo name confirmed: Minnal
-[x] WinUI 3 minimum Windows SDK version pinned? - Windows App SDK 1.6 GA, min Win10 22H2
+[x] WinUI 3 minimum Windows SDK version pinned? - Path B locked: WinUI 3 chrome + WebView2 content
 [x] gemma-4-e4b GGUF download URL finalised? - model locked; exact HF revision SHA still needed before download code
-[x] llama.cpp vendored as git submodule or cargo FFI crate? - llama-cpp-2, revisit only if DirectML unavailable
-[x] DirectML SDK version pinned? - DirectML 1.15.x
-[x] sqlite-vec version pinned and tested on Windows? - pin 0.1.x; Phase 0.5 spike decides sqlite-vec vs hnsw_rs
+[ ] llama.cpp vendored as git submodule or cargo FFI crate? - `llama-cpp-2` 0.1.146 has no DirectML feature; custom build decision required
+[ ] DirectML SDK version pinned? - DirectML 1.15.x target retained, but backend integration blocked
+[x] sqlite-vec version pinned and tested on Windows? - `sqlite-vec` 0.1.9 confirmed on Windows MSVC
 [x] CI: GitHub Actions Windows runner confirmed available? - windows-2022
 [x] MSIX signing: personal use? - self-signed for dev/internal
 ```
@@ -61,6 +61,10 @@ See Minnal.md and plan.md for full detail. Summary:
 [x] phase-0-and-0.5.md task script authored
 [x] Minnal-ui V001 design direction authored: execution-first workbench, contextual Why drawer, semantic canvas as mode
 [x] Phase 0 Cargo workspace scaffold committed and pushed
+[x] Phase 0 scaffold re-verified: `cargo fmt --all -- --check` and `cargo build --workspace --all-targets`
+[x] Spike A: Path B locked (2026-05-02). No usable `windows-app-sdk` Rust crate found; installed Windows App Runtime is 1.2, below 1.6 target.
+[ ] Spike B: blocked (2026-05-02). `llama-cpp-2` 0.1.146 exposes no DirectML feature; build also fails because `libclang` is missing. No local GGUF found, so one-token inference and embedding dimension are not verified.
+[x] Spike C: sqlite-vec confirmed on Windows (2026-05-02). `sqlite-vec` 0.1.9 + `rusqlite` 0.31 compiled, loaded via `sqlite3_auto_extension`, and returned `[(1, 0.0), (2, 0.800000011920929)]`.
 ```
 
 ---
@@ -69,14 +73,13 @@ See Minnal.md and plan.md for full detail. Summary:
 
 ```
 Crate:    workspace root
-Task:     Begin Phase 0.5 spike preparation
+Task:     Resolve remaining Phase 0.5 Spike B blocker
 
 Steps:
-  1. Review Phase 0 scaffold structure.
-  2. Run Spike A: WinUI 3 + Rust hello-window.
-  3. Run Spike B: llama.cpp + DirectML smoke test.
-  4. Run Spike C: sqlite-vec Windows load.
-  5. Record outcomes in CONTEXT.md.
+  1. Install or point bindgen to `libclang` (`LIBCLANG_PATH`).
+  2. Decide whether to continue with `llama-cpp-2` CPU/Vulkan/dynamic-backends or pivot to llama.cpp git submodule + custom DirectML build.
+  3. Place a tiny GGUF under `spikes/spike-b-llama/models/`.
+  4. Run the one-token smoke test and record backend, TTFT, and embedding dimension.
 
 Constraints:
   - Spikes live outside production crates unless explicitly promoted.
@@ -99,14 +102,14 @@ Task: Review Phase 0 scaffold, Minnal-ui V001 direction, and prepare Phase 0.5 s
 ## Known Risks (Monitor)
 
 ```
-[HIGH]   WinUI 3 + Rust: pioneering territory.
-         Mitigation: Phase 0.5 Spike A before any UI feature work.
+[LOW]    WinUI 3 + Rust: Path A blocked; Path B locked.
+         Mitigation: WebView2 content hosted by native WinUI 3 chrome.
 
 [HIGH]   llama.cpp + DirectML on Windows: build complexity.
-         Mitigation: Phase 0.5 Spike B before Minnal-ai implementation.
+         Mitigation: resolve `libclang` and DirectML binding path before Minnal-ai implementation.
 
 [MEDIUM] sqlite-vec Windows build fragility.
-         Mitigation: Phase 0.5 Spike C; hnsw_rs fallback behind EmbeddingIndex.
+         Mitigation: Spike C passed on Windows MSVC; keep hnsw_rs fallback behind EmbeddingIndex.
 
 [MEDIUM] Embedding dimension mismatch with V001 FLOAT[1024].
          Mitigation: Spike B records actual gemma-4-e4b embedding dimension before V001 ships.

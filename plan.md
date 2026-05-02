@@ -30,7 +30,7 @@ When a milestone says "Claude designs → Codex scaffolds → Arun integrates", 
 | 2 | Repo name confirmed: `Minnal`? | **Yes.** `minnal` (lowercase) for the GitHub URL; `Minnal` for product branding & docs. Tagline `Never Settle` in repo description. | URL hygiene + brand consistency; matches Tier-3 plan to publish publicly. |
 | 3 | WinUI 3 minimum Windows SDK version pinned? | **Windows App SDK 1.6 GA.** Min target: Win10 22H2 (10.0.19045). Recommended: Win11 23H2+. | 1.6 is the most recent stable WinAppSDK with shipping WinUI 3 controls; Win10 22H2 is the lowest version still receiving security updates (matches §2.1). |
 | 4 | gemma-4-e4b GGUF download URL finalised? | **gemma-4-e4b 14B, Apache 2.0.** Confirmed by Arun: Apache-aligned, no namespace conflict with Google's Gemma. Pin exact HF revision SHA, never `latest`. Default `Q4_K_M` for 16GB tier; `Q8_0` for 32GB+. First-run guided download; Ollama sidecar preferred if present. | Apache 2.0 model in an Apache 2.0 project — clean. Pinned SHA prevents silent upstream changes. Minnal.md §12 manifest updated to clarify the namespace (gemma-4-e4b is unrelated to Google Gemma family). |
-| 5 | llama.cpp vendored as git submodule or cargo FFI crate? | **Cargo FFI crate (`llama-cpp-2`)** at pinned commit. | Less build complexity, community-maintained bindings, easy to upgrade. ⚠️ Revisit if DirectML backend not exposed by binding — fall back to git submodule + custom `build.rs`. |
+| 5 | llama.cpp vendored as git submodule or cargo FFI crate? | **Open after Spike B partial.** `llama-cpp-2` 0.1.146 exists, but exposes no DirectML feature; build also requires `libclang`. | DirectML trigger fired on 2026-05-02. Decide between CPU/Vulkan/dynamic-backends via crate or llama.cpp git submodule + custom DirectML `build.rs` before Phase 2. |
 | 6 | DirectML SDK version pinned? | **DirectML 1.15.x via NuGet redist + `windows-rs` bindings.** | 1.15 ships current ML operator set required by gemma-4-e4b inference; `windows-rs` already covers DirectML.h surface. |
 | 7 | sqlite-vec version pinned and tested on Windows? | **Pin `sqlite-vec 0.1.x` (latest).** Phase 0 spike must load it on the target machine before any schema work begins. **Fallback**: `hnsw_rs` (Apache 2.0) over plain `BLOB` columns if extension load fails. | sqlite-vec is young; Windows MSVC linkage is the failure mode worth proving early, not on the day you ship UC-06. |
 | 8 | CI: GitHub Actions Windows runner confirmed? | **Yes — `windows-2022` runner.** Cache `~/.cargo` and `target/` per workspace; install Windows App SDK in a setup step (no built-in action exists, so a one-shot PowerShell installer is committed under `.github/actions/setup-winappsdk/`). | Pinning to `windows-latest` is fragile; `windows-2022` is stable through 2026. WinAppSDK install adds ~90s to cold CI runs — accept it. |
@@ -522,11 +522,13 @@ Per Minnal.md §13 Minnal-export checklist.
 **Owner**: Codex CLI generates, Claude reviews. **UX vision authored by Claude** (this plan, §4).
 **Phase**: 4.
 **Internal deps**: Minnal-core, Minnal-ai, Minnal-hooks, Minnal-store.
-**External deps (proposed)**: `windows-app-sdk` bindings via `windows` crate, custom XAML compilation pipeline, `tokio`.
+**External deps (proposed)**: `windows` crate for native chrome, WebView2 runtime/control, `tokio`, a small localhost HTTP layer for UI assets/events.
 
 This is the most uncertain crate because WinUI 3 + Rust is pioneering territory (Minnal.md CONTEXT.md HIGH risk #1). Phase 0.5 Spike A determines whether the plan below holds or whether we pivot.
 
 #### Two possible architectures (decision after Spike A)
+
+**Decision (2026-05-02): Path B locked.** Spike A found no usable `windows-app-sdk` Rust crate and the dev machine only has Windows App Runtime 1.2 installed, below the 1.6 target. Pure Rust/WinUI remains too fragile for v1.
 
 **Path A — Pure WinUI 3 + Rust (preferred).**
 XAML files compiled to WinRT IDL, Rust code-behind via `windows` crate. Build pipeline includes a custom `build.rs` that runs `xamlcompiler.exe`.
@@ -537,7 +539,7 @@ XAML for window chrome only; main content rendered as a single WebView2 hosting 
 If Path A succeeds in spike: proceed with §5.6 modules below.
 If Path A fails: pivot. New §5.6 plan authored against Path B before any Phase 4 work begins.
 
-#### Modules (Path A)
+#### Legacy Modules (Path A, superseded by Path B decision)
 
 ```
 Minnal-ui/
@@ -560,10 +562,32 @@ Minnal-ui/
     └── fonts/                  ← Cascadia Code / Inter (or system)
 ```
 
+#### Modules (Path B)
+
+```
+Minnal-ui/
+  src/
+    lib.rs          <- App entry
+    shell/          <- native window, WebView2 host, theme bridge
+    bridge/         <- Rust <-> WebView2 message contract
+    server/         <- localhost static assets + command/event endpoints
+    state/          <- UI session state projected from core/store/ai
+    assets.rs       <- embedded asset lookup/versioning
+  web/
+    app/            <- intent bar, canvas, request surface, response thread
+    components/     <- shared workbench controls
+    styles/         <- dark-first, monospace data, sans chrome
+    contracts/      <- typed DTOs shared with bridge
+  xaml/             <- minimal native chrome only
+  assets/
+    icons/
+    fonts/
+```
+
 #### Milestones
 
-- **M1.** MainWindow with the five surfaces laid out (no functionality, just structure). Cold-start measured.
-- **M2.** Intent Bar wired to a stub that prints intent classification result. Disambiguation logic later.
+- **M1.** Native MainWindow hosts WebView2 and serves the static workbench from localhost. Cold-start measured.
+- **M2.** Bridge contract wired: WebView2 can invoke a Rust stub and receive structured responses.
 - **M3.** Semantic Canvas reading collections from Minnal-store, rendering by *folder structure* first (parity with Postman import), then iteratively replaced by embedding-based clusters when Minnal-ai is available.
 - **M4.** Request Surface with method/URL/body/headers — submitting calls Minnal-core.
 - **M5.** Response Thread with run-history per request from Minnal-store, "Why" affordance calling Minnal-ai UC-04.

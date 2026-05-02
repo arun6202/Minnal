@@ -1,4 +1,4 @@
-﻿[workspace]
+[workspace]
 members = [
     "crates/minnal-core",
     "crates/minnal-store",
@@ -7,6 +7,7 @@ members = [
     "crates/minnal-export",
     "crates/minnal-ui",
 ]
+exclude = ["spikes/*"]
 resolver = "2"
 
 [workspace.package]
@@ -29,4 +30,3 @@ unwrap_used = "deny"
 expect_used = "deny"
 panic = "deny"
 todo = "warn"
-
