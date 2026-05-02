@@ -59,8 +59,14 @@
 
     <section class="request-surface">
         <div class="request-line">
-            <div class="method-box">@active.Method</div>
-            <div class="url-box">@active.Url</div>
+            <select class="method-box method-select" @bind="_methodText" disabled="@(_sending || _running)">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PATCH">PATCH</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+            </select>
+            <input class="url-box url-input" @bind="_urlText" @bind:event="oninput" disabled="@(_sending || _running)" />
             <button class="primary" @onclick="OnSendAsync" disabled="@_sending">@(_sending ? "Sending..." : "Send")</button>
         </div>
 
@@ -162,6 +168,8 @@
     private Minnal.AppModel.WorkbenchView _view = default!;
     private HttpResultView? _liveResponse;
     private string _aiExplanation = "";
+    private string _methodText = "GET";
+    private string _urlText = "";
     private bool _sending;
     private bool _explaining;
     private bool _running;
@@ -169,6 +177,8 @@
     protected override void OnInitialized()
     {
         _view = Workbench.GetView();
+        _methodText = _view.Snapshot.ActiveRequest.Method;
+        _urlText = _view.Snapshot.ActiveRequest.Url;
     }
 
     protected override void OnAfterRender(bool firstRender)
@@ -185,8 +195,8 @@
     {
         _sending = true;
         _liveResponse = null;
-        var active = _view.Snapshot.ActiveRequest;
-        _liveResponse = await Http.SendAsync(active.Method, active.Url);
+        _aiExplanation = "";
+        _liveResponse = await Http.SendAsync(_methodText, _urlText.Trim());
         _sending = false;
     }
 

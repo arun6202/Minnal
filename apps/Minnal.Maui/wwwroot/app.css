@@ -17,6 +17,12 @@ button {
     padding: 0 16px;
 }
 
+input,
+select {
+    color: inherit;
+    font: inherit;
+}
+
 p {
     margin: 0;
 }
@@ -188,6 +194,22 @@ small,
     display: flex;
     font-weight: 800;
     justify-content: center;
+}
+
+.method-select {
+    appearance: none;
+    cursor: pointer;
+    padding: 0 12px;
+}
+
+.url-input {
+    color: #f3f7f5;
+    outline: 0;
+}
+
+.url-input:focus,
+.method-select:focus {
+    border-color: #71e6c2;
 }
 
 .request-grid {
