@@ -58,47 +58,19 @@
     </section>
 
     <section class="request-surface">
-        <div class="request-line">
-            <select class="method-box method-select" @bind="_methodText" disabled="@(_sending || _running)">
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PATCH">PATCH</option>
-                <option value="PUT">PUT</option>
-                <option value="DELETE">DELETE</option>
-            </select>
-            <input class="url-box url-input" @bind="_urlText" @bind:event="oninput" disabled="@(_sending || _running)" />
-            <button class="primary" @onclick="OnSendAsync" disabled="@_sending">@(_sending ? "Sending..." : "Send")</button>
-        </div>
+        <section class="request-column">
+            <div class="request-line">
+                <select class="method-box method-select" @bind="_methodText" disabled="@(_sending || _running)">
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="PUT">PUT</option>
+                    <option value="DELETE">DELETE</option>
+                </select>
+                <input class="url-box url-input" @bind="_urlText" @bind:event="oninput" disabled="@(_sending || _running)" />
+                <button class="primary" @onclick="OnSendAsync" disabled="@_sending">@(_sending ? "Sending..." : "Send")</button>
+            </div>
 
-        <div class="request-grid">
-            <article class="panel">
-                <div class="panel-heading">
-                    <div class="panel-title">Headers</div>
-                    <button class="icon-button" @onclick="AddHeader" disabled="@(_sending || _running)">Add</button>
-                </div>
-                <div class="header-presets">
-                    <button class="preset-button" @onclick="AddApiKeyHeader" disabled="@(_sending || _running)">API Key</button>
-                    <button class="preset-button" @onclick="AddBearerHeader" disabled="@(_sending || _running)">Bearer</button>
-                    <button class="preset-button" @onclick="AddJsonHeader" disabled="@(_sending || _running)">JSON</button>
-                </div>
-                <div class="header-list">
-                    @foreach (var header in _headers)
-                    {
-                        <div class="header-row">
-                            <input class="header-toggle" type="checkbox" @bind="header.Enabled" disabled="@(_sending || _running)" />
-                            <select class="header-name" @bind="header.Name" disabled="@(_sending || _running || !header.Enabled)">
-                                <option value="x-api-key">x-api-key</option>
-                                <option value="Authorization">Authorization</option>
-                                <option value="Accept">Accept</option>
-                                <option value="Content-Type">Content-Type</option>
-                                <option value="X-Request-Id">X-Request-Id</option>
-                            </select>
-                            <input class="header-value" type="@HeaderValueInputType(header)" @bind="header.Value" @bind:event="oninput" placeholder="@HeaderValueHint(header)" disabled="@(_sending || _running || !header.Enabled)" />
-                            <button class="icon-button" @onclick="() => ClearHeader(header)" disabled="@(_sending || _running)">Clear</button>
-                        </div>
-                    }
-                </div>
-            </article>
             <article class="panel body-panel">
                 <div class="panel-heading">
                     <div class="panel-title">Body</div>
@@ -109,33 +81,59 @@
                 </div>
                 <textarea class="body-editor" @bind="_bodyText" @bind:event="oninput" placeholder="Request body" spellcheck="false" disabled="@(_sending || _running)"></textarea>
             </article>
-        </div>
+        </section>
 
-        <article class="response-panel">
-            @if (_liveResponse is not null)
-            {
-                <div class="response-meta">
-                    <strong>@_liveResponse.StatusCode</strong>
-                    <span>@_liveResponse.DurationMs ms</span>
-                    <span>@((_liveResponse.SizeBytes / 1024.0).ToString("0.0")) KB</span>
-                    @if (_liveResponse.IsError) { <span class="warn">@_liveResponse.ErrorMessage</span> }
+        <section class="response-column">
+            <article class="response-panel">
+                @if (_liveResponse is not null)
+                {
+                    <div class="response-meta">
+                        <strong>@_liveResponse.StatusCode</strong>
+                        <span>@_liveResponse.DurationMs ms</span>
+                        <span>@((_liveResponse.SizeBytes / 1024.0).ToString("0.0")) KB</span>
+                        @if (_liveResponse.IsError) { <span class="warn">@_liveResponse.ErrorMessage</span> }
+                    </div>
+                    <p>@_liveResponse.Body</p>
+                }
+                else if (_sending)
+                {
+                    <p>Sending...</p>
+                }
+                else
+                {
+                    <div class="response-meta">
+                        <strong>@response.StatusCode</strong>
+                        <span>@response.DurationMs ms</span>
+                        <span>@response.SizeKb.ToString("0.0") KB</span>
+                    </div>
+                    <p>@response.Summary</p>
+                }
+            </article>
+
+            <article class="panel headers-panel">
+                <div class="panel-heading">
+                    <div class="panel-title">Headers</div>
+                    <button class="icon-button symbol-button" title="Add header" @onclick="AddHeader" disabled="@(_sending || _running || !CanAddHeader())">+</button>
                 </div>
-                <p>@_liveResponse.Body</p>
-            }
-            else if (_sending)
-            {
-                <p>Sending...</p>
-            }
-            else
-            {
-                <div class="response-meta">
-                    <strong>@response.StatusCode</strong>
-                    <span>@response.DurationMs ms</span>
-                    <span>@response.SizeKb.ToString("0.0") KB</span>
+                <div class="header-list">
+                    @foreach (var header in _headers)
+                    {
+                        <div class="header-row">
+                            <input class="header-toggle" type="checkbox" @bind="header.Enabled" disabled="@(_sending || _running)" />
+                            <select class="header-name" value="@header.Name" @onchange="args => ChangeHeaderName(header, args)" disabled="@(_sending || _running || !header.Enabled)">
+                                @foreach (var name in HeaderNames)
+                                {
+                                    <option value="@name" disabled="@IsHeaderNameTaken(name, header)">@HeaderLabel(name)</option>
+                                }
+                            </select>
+                            <input class="header-value" type="@HeaderValueInputType(header)" @bind="header.Value" @bind:event="oninput" placeholder="@HeaderValueHint(header)" disabled="@(_sending || _running || !header.Enabled)" />
+                            <button class="icon-button symbol-button" title="Add header" @onclick="AddHeader" disabled="@(_sending || _running || !CanAddHeader())">+</button>
+                            <button class="icon-button symbol-button danger-button" title="Remove header" @onclick="() => RemoveHeader(header)" disabled="@(_sending || _running)">-</button>
+                        </div>
+                    }
                 </div>
-                <p>@response.Summary</p>
-            }
-        </article>
+            </article>
+        </section>
 
         <footer class="promote-strip">
             <span>Zero persistence until Promote</span>
@@ -274,6 +272,15 @@
         new HttpHeaderView { Enabled = true, Name = "x-api-key", Value = "" }
     };
 
+    private static readonly string[] HeaderNames =
+    {
+        "x-api-key",
+        "Authorization",
+        "Accept",
+        "Content-Type",
+        "X-Request-Id"
+    };
+
     private HttpHeaderView[] ActiveHeaders() =>
         _headers
             .Where(header => header.Enabled && !string.IsNullOrWhiteSpace(header.Name) && !string.IsNullOrWhiteSpace(header.Value))
@@ -281,22 +288,10 @@
 
     private void AddHeader()
     {
-        _headers.Add(new HttpHeaderView { Enabled = true, Name = "x-api-key", Value = "" });
-    }
+        var name = FirstAvailableHeaderName();
+        if (name is null) return;
 
-    private void AddApiKeyHeader()
-    {
-        _headers.Add(new HttpHeaderView { Enabled = true, Name = "x-api-key", Value = "" });
-    }
-
-    private void AddBearerHeader()
-    {
-        _headers.Add(new HttpHeaderView { Enabled = true, Name = "Authorization", Value = "Bearer " });
-    }
-
-    private void AddJsonHeader()
-    {
-        _headers.Add(new HttpHeaderView { Enabled = true, Name = "Accept", Value = "application/json" });
+        _headers.Add(new HttpHeaderView { Enabled = true, Name = name, Value = DefaultHeaderValue(name) });
     }
 
     private void UseJsonBody()
@@ -309,9 +304,9 @@
         _bodyText = "";
     }
 
-    private static void ClearHeader(HttpHeaderView header)
+    private void RemoveHeader(HttpHeaderView header)
     {
-        header.Value = "";
+        _headers.Remove(header);
     }
 
     private static string HeaderValueInputType(HttpHeaderView header) =>
@@ -323,5 +318,42 @@
     private static string HeaderValueHint(HttpHeaderView header) =>
         header.Name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)
             ? "Bearer token"
+            : header.Name.Equals("Accept", StringComparison.OrdinalIgnoreCase) ||
+              header.Name.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)
+            ? "application/json"
             : "value";
+
+    private bool CanAddHeader() => FirstAvailableHeaderName() is not null;
+
+    private string? FirstAvailableHeaderName() =>
+        HeaderNames.FirstOrDefault(name => !_headers.Any(header => HeaderNameEquals(header.Name, name)));
+
+    private bool IsHeaderNameTaken(string name, HttpHeaderView current) =>
+        _headers.Any(header => !ReferenceEquals(header, current) && HeaderNameEquals(header.Name, name));
+
+    private void ChangeHeaderName(HttpHeaderView header, ChangeEventArgs args)
+    {
+        var name = args.Value?.ToString() ?? "";
+
+        if (string.IsNullOrWhiteSpace(name) || IsHeaderNameTaken(name, header)) return;
+
+        header.Name = name;
+        header.Value = DefaultHeaderValue(name);
+    }
+
+    private static string HeaderLabel(string name) =>
+        name.Equals("x-api-key", StringComparison.OrdinalIgnoreCase)
+            ? "API Key"
+            : name;
+
+    private static string DefaultHeaderValue(string name) =>
+        name.Equals("Authorization", StringComparison.OrdinalIgnoreCase)
+            ? "Bearer "
+            : name.Equals("Accept", StringComparison.OrdinalIgnoreCase) ||
+              name.Equals("Content-Type", StringComparison.OrdinalIgnoreCase)
+            ? "application/json"
+            : "";
+
+    private static bool HeaderNameEquals(string left, string right) =>
+        left.Equals(right, StringComparison.OrdinalIgnoreCase);
 }
